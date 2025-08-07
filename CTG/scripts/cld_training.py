@@ -265,8 +265,7 @@ if __name__ == "__main__":
         default_config.train.rebuild_cache = args.rebuild_cache
     if args.trajdata_cache_location is not None:
         default_config.train.trajdata_cache_location = args.trajdata_cache_location
-    if args.wandb_run_id is not None:
-        default_config.train.logging.wandb_run_id = args.wandb_run_id
+  
     if args.nusc_trainval_dir is not None:
         default_config.train.trajdata_data_dirs["nusc_trainval"] = args.nusc_trainval_dir
     if args.nusc_mini_dir is not None:
