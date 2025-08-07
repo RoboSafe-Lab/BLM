@@ -216,6 +216,18 @@ if __name__ == "__main__":
     parser.add_argument(
         "--datamodule_class", type=str, default="CLDDataModule", help="Trajdata datamodule class"
     )
+    parser.add_argument(
+        "--trajdata_cache_location", type=str, default=None, help="Wandb run name"
+    )
+    parser.add_argument(
+        "--name", type=str, default=None, help="name"
+    )
+    parser.add_argument(
+        "--mix_gauss", type=int, default=None, help="mix_gauss"
+    )
+    parser.add_argument(
+        "--training_num_steps", type=int, default=None, help="training_num_steps"
+    )
 
     args = parser.parse_args()
 
@@ -241,23 +253,29 @@ if __name__ == "__main__":
 
     if args.wandb_project_name is not None:
         default_config.train.logging.wandb_project_name = args.wandb_project_name
+    if args.name is not None:
+        default_config.name = args.name # wandb run name
 
     if args.source_train is not None:
         default_config.train.trajdata_source_train = [args.source_train]
     if args.source_valid is not None:
         default_config.train.trajdata_source_valid = [args.source_valid]
-    # if args.data_dirs is not None:
-    #     # Convert string path to dict format expected by trajdata
-    #     dataset_name = args.source_train.split('-')[0] if args.source_train else "nusc_mini"
-    #     default_config.train.trajdata_data_dirs = {dataset_name: args.data_dirs}
+    
+    if args.training_num_steps is not None:
+        default_config.train.training.num_steps = args.training_num_steps
 
     if args.rebuild_cache is not None:
         default_config.train.rebuild_cache = args.rebuild_cache
+    if args.trajdata_cache_location is not None:
+        default_config.train.trajdata_cache_location = args.trajdata_cache_location
+    if args.wandb_run_id is not None:
+        default_config.train.logging.wandb_run_id = args.wandb_run_id
     if args.nusc_trainval_dir is not None:
         default_config.train.trajdata_data_dirs["nusc_trainval"] = args.nusc_trainval_dir
     if args.nusc_mini_dir is not None:
         default_config.train.trajdata_data_dirs["nusc_mini"] = args.nusc_mini_dir
-   
+    if args.mix_gauss is not None:
+        default_config.algo.mix_gauss = args.mix_gauss
     if args.datamodule_class is not None:
         default_config.train.datamodule_class = args.datamodule_class
     if args.debug:

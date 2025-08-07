@@ -10,7 +10,7 @@
       },
       "save": {
         "enabled": true,
-        "every_n_steps": 2000,
+        "every_n_steps": 5000,
         "best_k": 1,
         "save_best_rollout": false,
         "save_best_validation": true
@@ -23,14 +23,14 @@
       },
       "training": {
         "batch_size": 64,
-        "num_steps": 5000,
+        "num_steps": 50000,
         "num_data_workers": 16
       },
       "validation": {
         "enabled": true,
         "batch_size": 32,
         "num_data_workers": 16,
-        "every_n_steps": 500,
+        "every_n_steps": 2000,
         "num_steps_per_epoch": 5
       },
 
@@ -113,8 +113,8 @@
 
       "dynamics": {
         "type": "Unicycle",
-        "max_steer": 0.5,
-        "max_yawvel": 2.5,
+        "max_steer": 0.3,
+        "max_yawvel": 2.0,
         "acce_bound": [-3,3],
         "ddh_bound": [-6.283185307179586,6.283185307179586],
         "max_speed": 40.0
