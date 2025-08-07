@@ -4,6 +4,7 @@ wandb/
 # Training outputs
 diffuser_trained_models/
 safety_critical_trained_models/
+**/logs/log.txt
 
 # Python cache
 __pycache__/
