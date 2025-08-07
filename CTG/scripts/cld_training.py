@@ -219,9 +219,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--trajdata_cache_location", type=str, default=None, help="Wandb run name"
     )
-    parser.add_argument(
-        "--name", type=str, default=None, help="name"
-    )
+
     parser.add_argument(
         "--mix_gauss", type=int, default=None, help="mix_gauss"
     )
@@ -244,7 +242,7 @@ if __name__ == "__main__":
         )
 
     if args.name is not None:
-        default_config.name = args.name
+        default_config.name = args.name # wandb run name
 
 
 
@@ -253,8 +251,7 @@ if __name__ == "__main__":
 
     if args.wandb_project_name is not None:
         default_config.train.logging.wandb_project_name = args.wandb_project_name
-    if args.name is not None:
-        default_config.name = args.name # wandb run name
+ 
 
     if args.source_train is not None:
         default_config.train.trajdata_source_train = [args.source_train]
