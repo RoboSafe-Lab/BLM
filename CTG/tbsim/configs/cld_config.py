@@ -8,15 +8,15 @@ class CLDTrainConfig(TrajdataTrainConfig):
     def __init__(self):
         super(CLDTrainConfig, self).__init__()
 
-        self.trajdata_cache_location = "/home/visier/cld_cache"
+        self.trajdata_cache_location = "~/cld_cache"
         self.trajdata_source_train = ["nusc_trainval-train", "nusc_trainval-train_val"]
         self.trajdata_source_valid = ["nusc_trainval-val"]
         # dict mapping dataset IDs -> root path
         #       all datasets that will be used must be included here
         self.trajdata_data_dirs = {
-            "nusc_trainval" : "/home/visier/nuscenes",
-            "nusc_test" : "/home/visier/nuscenes",
-            "nusc_mini" : "/home/visier/nuscenes",
+            "nusc_trainval" : "../nuscenes",
+            "nusc_test" : "../nuscenes",
+            "nusc_mini" : "../nuscenes",
         }
 
         # for debug

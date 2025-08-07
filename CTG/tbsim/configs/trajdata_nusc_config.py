@@ -8,7 +8,7 @@ class NuscTrajdataTrainConfig(TrajdataTrainConfig):
     def __init__(self):
         super(NuscTrajdataTrainConfig, self).__init__()
 
-        self.trajdata_cache_location = "~/.unified_data_cache"
+        self.trajdata_cache_location = "../cld_cache"
         self.trajdata_source_train = ["nusc_trainval-train", "nusc_trainval-train_val"]
         self.trajdata_source_valid = ["nusc_trainval-val"]
         # dict mapping dataset IDs -> root path
@@ -17,9 +17,9 @@ class NuscTrajdataTrainConfig(TrajdataTrainConfig):
             # "nusc_trainval" : "../behavior-generation-dataset/nuscenes",
             # "nusc_test" : "../behavior-generation-dataset/nuscenes",
             # "nusc_mini" : "../behavior-generation-dataset/nuscenes",
-            "nusc_trainval" : "/home/visier/nuscenes",
-            "nusc_test" : "/home/visier/nuscenes",
-            "nusc_mini" : "/home/visier/nuscenes",
+            "nusc_trainval" : "../nuscenes",
+            "nusc_test" : "../nuscenes",
+            "nusc_mini" : "../nuscenes",
         }
 
         # for debug

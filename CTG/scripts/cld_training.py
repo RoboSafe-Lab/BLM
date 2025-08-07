@@ -71,7 +71,7 @@ def main(cfg, auto_remove_exp_dir=False, debug=False):
     datamodule = datamodule_factory(
         cls_name=cfg.train.datamodule_class, config=cfg
     )
-    # datamodule.setup()
+    datamodule.setup()
 
     # Environment for close-loop evaluation
 
@@ -208,12 +208,6 @@ if __name__ == "__main__":
         "--on_ngc", action="store_true", help="Running on NGC"
     )
     parser.add_argument(
-    "--nusc_trainval_dir",type=str,default=None
-    )
-    parser.add_argument(
-    "--nusc_mini_dir",type=str,default=None
-    )
-    parser.add_argument(
         "--datamodule_class", type=str, default="CLDDataModule", help="Trajdata datamodule class"
     )
     parser.add_argument(
@@ -266,10 +260,7 @@ if __name__ == "__main__":
     if args.trajdata_cache_location is not None:
         default_config.train.trajdata_cache_location = args.trajdata_cache_location
   
-    if args.nusc_trainval_dir is not None:
-        default_config.train.trajdata_data_dirs["nusc_trainval"] = args.nusc_trainval_dir
-    if args.nusc_mini_dir is not None:
-        default_config.train.trajdata_data_dirs["nusc_mini"] = args.nusc_mini_dir
+
     if args.mix_gauss is not None:
         default_config.algo.mix_gauss = args.mix_gauss
     if args.datamodule_class is not None:
@@ -282,7 +273,12 @@ if __name__ == "__main__":
         default_config.train.rollout.num_episodes = 1
 
 
-
+    # "trajdata_cache_location": "../cld_cache",
+    # "trajdata_data_dirs": {
+    #     "nusc_trainval": "../nuscenes",
+    #     "nusc_test": "../nuscenes",
+    #     "nusc_mini": "../nuscenes"
+    #   },
 
     default_config.lock()  # Make config read-only
     main(default_config, auto_remove_exp_dir=args.remove_exp_dir, debug=args.debug)
