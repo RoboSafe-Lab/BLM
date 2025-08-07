@@ -1,1 +1,0 @@
-wandb: logging graph, to disable use `wandb.watch(log_graph=False)`

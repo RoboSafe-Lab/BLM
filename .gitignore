@@ -1,0 +1,44 @@
+# Wandb files
+wandb/
+
+# Training outputs
+diffuser_trained_models/
+safety_critical_trained_models/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Model files
+*.ckpt
+*.pth
+*.pt
+
+# Data cache
+*_cache/
+cache/
