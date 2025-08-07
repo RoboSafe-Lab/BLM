@@ -1,0 +1,44 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "name": "ctg test",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/CTG/scripts/train.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--dataset_path",
+                "/home/visier/nuscenes",
+                "--debug",
+                "--config_name",
+                "trajdata_nusc_diff"
+            ]
+        },
+        {
+            "name": "cld test",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/CTG/scripts/cld_training.py",
+            "console": "integratedTerminal",
+            "args": [
+                // "--debug",
+                "--config_file",
+                "${workspaceFolder}/CTG/cld_config.json",
+                "--source_train",
+                "nusc_mini-mini_train",
+                "--source_valid",
+                "nusc_mini-mini_val",
+                "--nusc_trainval_dir",
+                "/home/visier/nuscenes",
+                "--nusc_mini_dir",
+                "/home/visier/nuscenes",
+                "--rebuild_cache",
+                "false",
+                // "--remove_exp_dir",
+                
+            ]
+        }
+    ]
+}

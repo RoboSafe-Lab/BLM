@@ -1,0 +1,51 @@
+{
+  "os":  "Linux-6.11.0-29-generic-x86_64-with-glibc2.40",
+  "python":  "CPython 3.9.23",
+  "startedAt":  "2025-08-07T10:02:13.429540Z",
+  "args":  [
+    "--config_file",
+    "/home/visier/safety-critical/CTG/cld_config.json",
+    "--source_train",
+    "nusc_mini-mini_train",
+    "--source_valid",
+    "nusc_mini-mini_val",
+    "--nusc_trainval_dir",
+    "/home/visier/nuscenes",
+    "--nusc_mini_dir",
+    "/home/visier/nuscenes",
+    "--rebuild_cache",
+    "false",
+    "--remove_exp_dir"
+  ],
+  "program":  "/home/visier/safety-critical/CTG/scripts/cld_training.py",
+  "codePath":  "CTG/scripts/cld_training.py",
+  "codePathLocal":  "CTG/scripts/cld_training.py",
+  "email":  "yx3006@hw.ac.uk",
+  "root":  ".",
+  "host":  "visier",
+  "executable":  "/home/visier/miniconda3/envs/sc/bin/python",
+  "cpu_count":  12,
+  "cpu_count_logical":  24,
+  "gpu":  "NVIDIA GeForce RTX 4090",
+  "gpu_count":  1,
+  "disk":  {
+    "/":  {
+      "total":  "200449576960",
+      "used":  "24964067328"
+    }
+  },
+  "memory":  {
+    "total":  "63565189120"
+  },
+  "gpu_nvidia":  [
+    {
+      "name":  "NVIDIA GeForce RTX 4090",
+      "memoryTotal":  "25757220864",
+      "cudaCores":  16384,
+      "architecture":  "Ada",
+      "uuid":  "GPU-d7b626fe-d798-9201-8e23-448008853ff0"
+    }
+  ],
+  "cudaVersion":  "12.8",
+  "writerId":  "ja0ivborq3tqwcrnyaxdzs40ox6glbgx"
+}
