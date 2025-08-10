@@ -159,6 +159,122 @@ def guided_rollout(
 
     return stats, info, renderings
 
+def safety_critical_guided_rollout(
+    env,
+    policy,
+    policy_model,
+    n_step_action=1,
+    render=False,
+    scene_indices=None,
+    device=None,
+    obs_to_torch=True,
+    horizon=None,
+    start_frames=None,
+
+):
+    """
+    Rollout an environment.
+    Args:
+        env (BaseEnv): a base simulation environment (gym-like)
+        policy (RolloutWrapper): a policy that controls agents in the environment
+        policy_model (LightningModule): the traffic model underlying the policy with set_guidance and set_constraints implemented.
+        n_step_action (int): number of steps to take between querying models
+        guidance_config: which guidance functions to use
+        constriant_config: parameters of the constraints to use in each scene
+        render (bool): if True, return a sequence of rendered frames
+        scene_indices (tuple, list): (Optional) scenes indices to rollout with
+        device: device to cast observation to
+        obs_to_torch: whether to cast observation to torch
+        horizon (int): (Optional) override horizon of the simulation
+        start_frames (list) : (Optional) a list of starting frame index for each scene index.
+
+
+    Returns:
+        stats (dict): A dictionary of rollout stats for each episode (metrics, rewards, etc.)
+        info (dict): A dictionary of environment info for each episode
+        renderings (list): A list of rendered frames in the form of np.ndarray, one for each episode
+    """
+    stats = {}
+    info = {}
+    renderings = []
+    is_batched_env = isinstance(env, BatchedEnv)
+    timers = Timers()
+
+    # set up guidance and constraints, and associated metrics
+    added_metrics = [] # save for removal later
+
+    env.reset(scene_indices=scene_indices, start_frame_index=start_frames)
+
+    done = env.is_done()
+    counter = 0
+    step_since_last_update = 0
+    frames = []  
+    while not done:
+        timers.tic("step")
+        with timers.timed("obs"):
+            obs = env.get_observation()
+        with timers.timed("to_torch"):
+            if obs_to_torch:
+                device = policy.device if device is None else device
+                obs_torch = TensorUtils.to_torch(obs, device=device, ignore_if_unspecified=True)
+            else:
+                obs_torch = obs
+        with timers.timed("network"):
+            action = policy.get_action(obs_torch, step_index=counter)
+
+        with timers.timed("env_step"):
+            ims = env.step(
+                action, num_steps_to_take=n_step_action, render=render
+            )  # List of [num_scene, h, w, 3]
+        if render:
+            frames.extend(ims)
+        counter += n_step_action
+        step_since_last_update += n_step_action
+        timers.toc("step")
+        print(timers)
+        print('counter', counter)
+
+        done = env.is_done()
+
+        if horizon is not None and counter >= horizon:
+            break
+
+    # metrics = env.get_metrics()
+
+    # for k, v in metrics.items():
+    #     if k not in stats:
+    #         stats[k] = []
+    #     if is_batched_env:  # concatenate by scene
+    #         stats[k] = np.concatenate([stats[k], v], axis=0)
+    #     else:
+    #         stats[k].append(v)
+
+    # remove all temporary added metrics
+    # for met_name in added_metrics:
+    #     env._metrics.pop(met_name)
+    # # and undo guidance setting
+    # if policy_model is not None:
+    #     policy_model.clear_guidance()
+
+    env_info = env.get_info()
+    for k, v in env_info.items():
+        if k not in info:
+            info[k] = []
+        if is_batched_env:
+            info[k].extend(v)
+        else:
+            info[k].append(v)
+
+    if render:
+        frames = np.stack(frames)
+        if is_batched_env:
+            # [step, scene] -> [scene, step]
+            frames = frames.transpose((1, 0, 2, 3, 4))
+        renderings.append(frames)
+
+    env.reset_multi_episodes_metrics()
+
+    return stats, info, renderings
 ################## HEURISTIC CONFIG UTILS #########################
 
 from copy import deepcopy
@@ -1527,8 +1643,12 @@ def create_video(img_path_form, out_path, fps):
     Creates a video from a format for frame e.g. 'data_out/frame%04d.png'.
     Saves in out_path.
     '''
-    subprocess.run(['ffmpeg', '-y', '-r', str(fps), '-i', img_path_form, '-vf' , "pad=ceil(iw/2)*2:ceil(ih/2)*2",
-                    '-vcodec', 'libx264', '-crf', '18', '-pix_fmt', 'yuv420p', out_path])
+    subprocess.run([
+    'ffmpeg','-y','-framerate',str(fps),'-i',img_path_form,
+    '-vf','pad=ceil(iw/2)*2:ceil(ih/2)*2',
+    '-c:v','mpeg4','-q:v','3',          # 用 mpeg4，去掉 -crf，改用 -q:v
+    '-pix_fmt','yuv420p', out_path
+], check=True)
 
 
 def scene_to_video(rasterizer, scene_data, scene_name, output_dir,

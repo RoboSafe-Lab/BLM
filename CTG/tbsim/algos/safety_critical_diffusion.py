@@ -1,9 +1,12 @@
 import pytorch_lightning as pl
 
 from tbsim.models.ppo_diffuser import PPO_Diffuser
-from tbsim.utils.safety_critical_batch_utils import CustomTrajdataBatchUtils
+from tbsim.utils.safety_critical_batch_utils import parse_batch
 import torch.optim as optim
 import torch.nn as nn
+from tbsim.policies.common import Plan, Action
+
+from tbsim.utils.safety_critical_fig_vis import plot_trajdata_batch
 
 class PPO_Diffusion_Trainer(pl.LightningModule):
     def __init__(self, algo_config, modality_shapes, registered_name):
@@ -53,7 +56,7 @@ class PPO_Diffusion_Trainer(pl.LightningModule):
         pass
 
     def on_train_batch_start(self, batch, batch_idx):
-        return CustomTrajdataBatchUtils.parse_batch(batch)
+        return parse_batch(batch)
 
     def training_step_end(self, batch_parts):
         self.cur_train_step += 1
@@ -66,7 +69,7 @@ class PPO_Diffusion_Trainer(pl.LightningModule):
         return loss
     
     def on_validation_batch_start(self, batch, batch_idx):
-        return CustomTrajdataBatchUtils.parse_batch(batch)
+        return parse_batch(batch)
     
     def validation_step(self, batch, batch_idx):
         B = batch.center_fut_positions.shape[0]
@@ -93,3 +96,21 @@ class PPO_Diffusion_Trainer(pl.LightningModule):
         self.log('learning_rate', current_lr)
 
 
+    def get_action(self, obs_torch, **kwargs):
+       
+        preds = self.nets['policy'].sample_ddim(obs_torch)["predictions"]
+        preds_positions = preds["positions"]
+        # plot_trajdata_batch(obs_torch,preds_positions)
+        preds_yaws = preds["yaws"]
+
+        info = dict(
+            action_samples=Action(
+                positions=preds_positions,
+                yaws=preds_yaws
+            ).to_dict(),
+        )
+        action = Action(
+            positions=preds_positions,
+            yaws=preds_yaws
+        )
+        return action, info

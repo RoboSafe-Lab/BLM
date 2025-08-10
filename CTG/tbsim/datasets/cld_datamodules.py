@@ -130,7 +130,7 @@ class CLDDataModule(pl.LightningDataModule):
             batch_size=self._train_config.training.batch_size,
             num_workers=self._train_config.training.num_data_workers,
             drop_last=True,
-            collate_fn=self.train_dataset.get_collate_fn(),
+            collate_fn=self.train_dataset.get_collate_fn(return_dict=True),
             persistent_workers=True
         )
     
@@ -141,7 +141,7 @@ class CLDDataModule(pl.LightningDataModule):
             batch_size=self._train_config.validation.batch_size,
             num_workers=self._train_config.validation.num_data_workers,
             drop_last=True,
-            collate_fn=self.valid_dataset.get_collate_fn(),
+            collate_fn=self.valid_dataset.get_collate_fn(return_dict=True),
             persistent_workers=True
         )
 

@@ -22,6 +22,7 @@ from tbsim.utils.trajdata_utils import parse_trajdata_batch, get_drivable_region
 from tbsim.utils.rollout_logger import RolloutLogger
 from torch.nn.utils.rnn import pad_sequence
 from trajdata.data_structures.state import StateArray
+from tbsim.utils.safety_critical_batch_utils import parse_batch
 
 agent_types=[AgentType.UNKNOWN,AgentType.VEHICLE,AgentType.PEDESTRIAN,AgentType.BICYCLE,AgentType.MOTORCYCLE]
 
@@ -529,6 +530,7 @@ class EnvSplitUnifiedSimulation(EnvUnifiedSimulation):
             split_ego = False,
             renderer=None,
             parse_obs = True,
+         
     ):
         """
         A gym-like interface for simulating traffic behaviors (both ego and other agents) with UnifiedDataset, with the capability of spliting ego and agent observations
@@ -567,7 +569,7 @@ class EnvSplitUnifiedSimulation(EnvUnifiedSimulation):
         self._metrics = dict() if metrics is None else metrics
         self._log_data = log_data
         self.logger = None
-
+        self.save_action_samples = False
 
     def reset(self, scene_indices: List = None, start_frame_index = None):
         """
@@ -576,8 +578,9 @@ class EnvSplitUnifiedSimulation(EnvUnifiedSimulation):
         Args:
             scene_indices (List): Optional, a list of scene indices to initialize the simulation episode
         """
-        super(EnvSplitUnifiedSimulation,self).reset(scene_indices,start_frame_index)
+        scenes_valid = super(EnvSplitUnifiedSimulation,self).reset(scene_indices,start_frame_index)
         self._cached_raw_observation = None
+        return scenes_valid
 
     def render(self, actions_to_take):
         scene_ims = []
@@ -841,3 +844,185 @@ class EnvSplitUnifiedSimulation(EnvUnifiedSimulation):
         print(self.timers)
         
 
+class PPOEnvSplitUnifiedSimulation(EnvSplitUnifiedSimulation):
+    def get_observation(self,split_ego=None,return_raw=False):
+        if split_ego is None:
+            split_ego = self.split_ego
+        if return_raw:
+            if self._cached_raw_observation is not None:
+                return self._cached_raw_observation
+        else:
+            if self._cached_observation is not None:
+                if split_ego and "ego" in self._cached_observation:
+                    return self._cached_observation
+                elif not split_ego and "ego" not in self._cached_observation:
+                    return self._cached_observation
+                else:
+                    self._cached_observation = None
+                    self._cached_raw_observation = None
+
+        self.timers.tic("get_obs")
+
+        raw_obs = []
+        for si, scene in enumerate(self._current_scenes):
+            raw_obs.extend(scene.get_obs(collate=False))
+        self._cached_raw_observation = raw_obs
+        if return_raw:
+            return raw_obs
+        if split_ego:
+            # obtain index of ego and agents    
+            ego_idx = np.array([i for i,name in enumerate(self.current_agent_names) if name=="ego"])
+            agent_idx = np.array([i for i,name in enumerate(self.current_agent_names) if name!="ego"])
+            # raw_obs is the raw trajdata batch_element object without collation
+            ego_obs_raw = [raw_obs[idx] for idx in ego_idx]
+            # call the collate function to turn batch_element into trajdata batch object
+            ego_obs_collated = self.dataset.get_collate_fn(return_dict=True)(ego_obs_raw)
+            agent_obs_raw = [raw_obs[idx] for idx in agent_idx]
+            # call the collate function to turn batch_element into trajdata batch object
+            agent_obs_collated = self.dataset.get_collate_fn(return_dict=True)(agent_obs_raw)
+            
+            # parse_obs can be True (parse both ego and agent), or False (parse neither), or dictionary that determines whether to parse ego or agent observation
+            if self.parse_obs==True:
+                parse_plan = dict(ego=True,agent=True)
+            elif self.parse_obs==False:
+                parse_plan = dict(ego=False,agent=False)
+            elif isinstance(self.parse_obs,dict):
+                parse_plan = self.parse_obs
+            if parse_plan["ego"]:
+                ego_obs = parse_batch(ego_obs_collated)
+                ego_obs = TensorUtils.to_numpy(ego_obs,ignore_if_unspecified=True)
+                ego_obs["scene_index"] = self.current_agent_scene_index[ego_idx]
+                ego_obs["track_id"] = self.current_agent_track_id[ego_idx]
+            else:
+                # put collated observation into AgentBatch object from trajdata
+                ego_obs = AgentBatch(**ego_obs_collated)
+            if parse_plan["agent"]:
+                agent_obs = parse_batch(agent_obs_collated)
+                agent_obs = TensorUtils.to_numpy(agent_obs,ignore_if_unspecified=True)
+                agent_obs["scene_index"] = self.current_agent_scene_index[agent_idx]
+                agent_obs["track_id"] = self.current_agent_track_id[agent_idx]
+            else:
+                # put collated observation into AgentBatch object from trajdata
+                agent_obs = AgentBatch(**agent_obs_collated)
+            self._cached_observation = dict(ego=ego_obs,agents=agent_obs)
+        else:
+            # if ego is not splitted out, then either parse all observation or do not parse any observation.
+            assert isinstance(self.parse_obs,bool)
+            agent_obs = self.dataset.get_collate_fn()(raw_obs)
+            if self.parse_obs:
+                agent_obs = parse_batch(agent_obs)
+                agent_obs = TensorUtils.to_numpy(agent_obs,ignore_if_unspecified=True)
+                agent_obs["scene_index"] = self.current_agent_scene_index
+                agent_obs["track_id"] = self.current_agent_track_id
+            else:
+                agent_obs = AgentBatch(**agent_obs)
+            self._cached_observation = dict(agents=agent_obs)
+
+        self.timers.toc("get_obs")
+        return self._cached_observation
+
+    def get_observation_skimp(self,split_ego=True):
+        self.timers.tic("obs_skimp")
+        raw_obs = []
+        for si, scene in enumerate(self._current_scenes):
+            raw_obs.extend(scene.get_obs(collate=False))
+        obs = self.dataset.get_collate_fn(return_dict=True)(raw_obs)
+        obs = parse_batch(obs)
+        obs = TensorUtils.to_numpy(obs,ignore_if_unspecified=True)
+        obs["scene_index"] = self.current_agent_scene_index
+        obs["track_id"] = self.current_agent_track_id
+        self.timers.toc("obs_skimp")
+        if split_ego:
+            ego_mask = [name=="ego" for name in self.current_agent_names]
+            agents_mask = [name!="ego" for name in self.current_agent_names]
+            ego_obs = TensorUtils.map_ndarray(obs, lambda x: x[ego_mask])
+            agents_obs = TensorUtils.map_ndarray(obs, lambda x: x[agents_mask])
+            
+            return dict(ego=ego_obs,agents=agents_obs)
+        else:
+            return dict(agents=obs)
+
+    def _step(self, step_actions: RolloutAction, num_steps_to_take):
+        if self.is_done():
+            raise SimulationException("Cannot step in a finished episode")
+        self.timers.tic("_step")
+        # to bypass all the ego split, collation and parsing, directly get raw obs
+        raw_obs = self.get_observation(split_ego=False,return_raw=True)
+        obs = self.dataset.get_collate_fn(return_dict=True)(raw_obs)
+        # always parse when stepping
+        obs = parse_batch(obs)
+        obs = TensorUtils.to_numpy(obs,ignore_if_unspecified=True)
+        obs["scene_index"] = self.current_agent_scene_index
+        obs["track_id"] = self.current_agent_track_id
+        obs = {k:v for k,v in obs.items() if not isinstance(v,list)}
+
+        # record metrics
+        #TODO: fix the bugs in metrics when using diffstack
+        # self._add_per_step_metrics(obs)
+        if step_actions.has_ego:
+            combined_step_actions = self.combine_action(step_actions)
+            action = combined_step_actions.agents.to_dict()
+        else:
+            action = step_actions.agents.to_dict()
+        
+        assert action["positions"].shape[0] == obs["centroid"].shape[0]
+        for action_index in range(num_steps_to_take):
+            if action_index >= action["positions"].shape[1]:  # GT actions may be shorter
+                self._done = True
+                self._frame_index += action_index
+                self._cached_observation = None
+                self._cached_raw_observation = None
+                return
+            # # log state and action
+            obs_skimp = self.get_observation_skimp(split_ego=True)
+            # self._add_per_step_metrics(obs_skimp["agents"])
+            if self._log_data:
+                if step_actions.has_ego:
+                    ego_idx = np.array([i for i,name in enumerate(self.current_agent_names) if name=="ego"])
+                    agent_idx = np.array([i for i,name in enumerate(self.current_agent_names) if name!="ego"])
+                    action_t = TensorUtils.map_ndarray(action, lambda x: x[:, action_index:])
+                    action_to_log = RolloutAction(
+                        agents=Action.from_dict(dict(positions=action_t["positions"][agent_idx],yaws=action_t["yaws"][agent_idx])),
+                        agents_info=step_actions.agents_info,
+                        ego = Action.from_dict(dict(positions=action_t["positions"][ego_idx],yaws=action_t["yaws"][ego_idx])),
+                        ego_info=step_actions.ego_info,
+                    )
+                else:
+                    action_to_log = RolloutAction(
+                        agents=Action.from_dict(TensorUtils.map_ndarray(action, lambda x: x[:, action_index:])),
+                        agents_info=step_actions.agents_info
+                    )
+
+                self.logger.log_step(obs_skimp, action_to_log)
+
+            idx = 0
+            for scene in self._current_scenes:
+                scene_action = dict()
+                for agent in scene.agents:
+                    curr_yaw = obs["curr_agent_state"][idx, -1]
+                    curr_pos = obs["curr_agent_state"][idx, :2]
+                    world_from_agent = np.array(
+                        [
+                            [np.cos(curr_yaw), np.sin(curr_yaw)],
+                            [-np.sin(curr_yaw), np.cos(curr_yaw)],
+                        ]
+                    )
+                    next_state = np.ones(4, dtype=obs["agent_fut"].dtype) * np.nan
+                    if not np.any(np.isnan(action["positions"][idx, action_index])):  # ground truth action may be NaN
+                        next_state[:2] = action["positions"][idx, action_index] @ world_from_agent + curr_pos
+                        next_state[-1] = curr_yaw + action["yaws"][idx, action_index, 0]
+                    else:
+                        pass
+                    scene_action[agent.name] = StateArray.from_array(next_state, "x,y,z,h")
+                    idx += 1
+                scene.step(scene_action, return_obs=False)
+
+        self._cached_observation = None
+        self._cached_raw_observation = None
+        self.timers.toc("_step")
+        if self._frame_index + num_steps_to_take >= self.horizon:
+            self._done = True
+        else:
+            self._frame_index += num_steps_to_take
+        print(self.timers)
+        

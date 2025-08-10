@@ -7,7 +7,7 @@ from pathlib import Path
 from l5kit.data import LocalDataManager, ChunkedDataset
 from l5kit.rasterization import build_rasterizer
 from trajdata import AgentType, UnifiedDataset
-
+from tbsim.datasets.cld_datamodules import FilteredUnifiedDataset
 from tbsim.l5kit.vectorizer import build_vectorizer
 
 
@@ -15,8 +15,8 @@ from tbsim.configs.eval_config import EvaluationConfig
 from tbsim.configs.base import ExperimentConfig
 from tbsim.utils.metrics import OrnsteinUhlenbeckPerturbation
 from tbsim.envs.env_l5kit import EnvL5KitSimulation
-from tbsim.envs.env_trajdata import EnvUnifiedSimulation, EnvSplitUnifiedSimulation
-from tbsim.utils.config_utils import translate_l5kit_cfg, translate_trajdata_cfg, translate_pass_trajdata_cfg
+from tbsim.envs.env_trajdata import EnvUnifiedSimulation, EnvSplitUnifiedSimulation, PPOEnvSplitUnifiedSimulation
+from tbsim.utils.config_utils import translate_l5kit_cfg, translate_trajdata_cfg, translate_pass_trajdata_cfg,translate_cld_cfg
 from tbsim.utils.trajdata_utils import TRAJDATA_AGENT_TYPE_MAP, get_closest_lane_point_wrapper, get_full_fut_traj, get_full_fut_valid
 import tbsim.envs.env_metrics as EnvMetrics
 from tbsim.evaluation.metric_composers import CVAEMetrics, OccupancyMetrics
@@ -300,5 +300,89 @@ class EnvUnifiedBuilder(EnvironmentBuilder):
             metrics=metrics,
             save_action_samples=self.eval_cfg.save_action_samples,
         )
+
+        return env
+
+class EnvCLDBuilder(EnvironmentBuilder):
+    def get_env(self):
+        exp_cfg = self.exp_cfg.clone()
+        exp_cfg.unlock()
+        exp_cfg.env.simulation.num_simulation_steps = self.eval_cfg.num_simulation_steps
+        exp_cfg.env.simulation.start_frame_index = exp_cfg.algo.history_num_frames + 1
+        exp_cfg.lock()
+
+        # the config used at training time
+        # print('exp_cfg', exp_cfg)
+        data_cfg = translate_cld_cfg(exp_cfg)
+
+        future_sec = data_cfg.future_num_frames * data_cfg.step_time
+        history_sec = data_cfg.history_num_frames * data_cfg.step_time
+        neighbor_distance = data_cfg.max_agents_distance
+        agent_only_types = [TRAJDATA_AGENT_TYPE_MAP[cur_type] for cur_type in data_cfg.trajdata_only_types]
+        agent_predict_types = None
+        if data_cfg.trajdata_predict_types is not None:
+            agent_predict_types = [TRAJDATA_AGENT_TYPE_MAP[cur_type] for cur_type in data_cfg.trajdata_predict_types]
+        # TBD: hack to accomodate drivesim rollout data when not enough future data is available
+        if 'drivesim' in self.eval_cfg.trajdata_data_dirs.keys():
+            future_sec_min = 0.1
+        else:
+            future_sec_min = future_sec
+        kwargs = dict(
+            cache_location=data_cfg.trajdata_cache_location,
+            desired_data=data_cfg.trajdata_source_train,
+            data_dirs=data_cfg.trajdata_data_dirs,
+            desired_dt=data_cfg.step_time,
+            only_types=agent_only_types,
+            only_predict=agent_predict_types,
+
+            future_sec=(future_sec, future_sec),
+            history_sec=(history_sec, history_sec),
+            incl_robot_future=   data_cfg.incl_robot_future,
+            ego_only         =not data_cfg.incl_robot_future,
+
+            agent_interaction_distances=defaultdict(lambda: neighbor_distance),
+            incl_raster_map=data_cfg.trajdata_incl_map,
+            raster_map_params={
+                "px_per_m": int(1 / data_cfg.pixel_size),
+                "map_size_px": data_cfg.raster_size,
+                "return_rgb": True,
+                "offset_frac_xy": data_cfg.raster_center,
+                "no_map_fill_value": data_cfg.no_map_fill_value,
+            },
+            centric=data_cfg.trajdata_centric,
+
+            standardize_data=data_cfg.trajdata_standardize_data,
+            verbose=True,
+            num_workers=os.cpu_count(),
+            rebuild_cache=data_cfg.trajdata_rebuild_cache,
+            rebuild_maps=data_cfg.trajdata_rebuild_cache
+        )
+
+        env_dataset = FilteredUnifiedDataset(**kwargs)
+
+        metrics = dict()
+        if self.eval_cfg.metrics.compute_analytical_metrics:
+            metrics.update(self._get_analytical_metrics())
+        if self.eval_cfg.metrics.compute_learned_metrics:
+            metrics.update(self._get_learned_metrics())
+
+        # if we don't have a map, can't compute map-based metrics
+        if not data_cfg.trajdata_incl_map:
+            metrics.pop("all_off_road_rate", None)
+            metrics.pop("all_sem_layer_rate", None)
+            metrics.pop("all_coverage", None)
+            metrics.pop("all_diversity", None)
+            metrics.pop("all_failure", None)
+
+        env = PPOEnvSplitUnifiedSimulation(
+                exp_cfg.env,
+                dataset=env_dataset,
+                seed=self.eval_cfg.seed,
+                num_scenes=self.eval_cfg.num_scenes_per_batch,
+                prediction_only=False,
+                metrics=metrics,
+                split_ego=True,
+                parse_obs = True,
+            )
 
         return env

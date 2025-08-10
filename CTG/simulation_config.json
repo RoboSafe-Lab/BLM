@@ -1,0 +1,144 @@
+{
+    "results_dir": "CTG/sc_simulation",
+    "name": "store_results",
+    "env": "trajdata",
+    "dataset_path": "../nuscenes",
+    "eval_class": "PPO_Diffuser",
+    "seed": 42,
+    "num_scenes_per_batch": 1,
+    
+    "num_episode_repeats": 1,
+    "start_frame_index_each_episode": null,
+
+    "trajdata":{
+        "trajdata_cache_location": "../cld_cache",
+        "trajdata_rebuild_cache": false,
+        "num_sim_per_scene": 1,
+        "future_sec": 5.2,
+        "history_sec": 3.0,
+        "trajdata_data_dirs":{
+            "nusc_trainval": "../nuscenes"
+        },
+        "num_scenes_to_evaluate": 1,
+        "num_simulation_steps": 20
+        
+    },
+    
+    "ckpt": {
+        "policy": {
+            "ckpt_dir": "CTG/safety_critical_trained_models/linux_Aug-07-12:25/run0/",
+            "ckpt_key": "iter90000.ckpt"
+        },
+        "planner": {
+            "ckpt_dir": null,
+            "ckpt_key": null
+        },
+        "predictor": {
+            "ckpt_dir": null,
+            "ckpt_key": null
+        }
+
+    },
+    "policy": {
+        "mask_drivable": true,
+        "num_plan_samples": 5,
+        "num_action_samples": 5,
+        "pos_to_yaw": false,
+        "yaw_correction_speed": 1.0,
+        "diversification_clearance": null,
+        "sample": true,
+        "cost_weights": {
+            "collision_weight": 10.0,
+            "lane_weight": 1.0,
+            "likelihood_weight": 0.0,
+            "progress_weight": 0.0
+        },
+        "use_ema": false,
+        "class_free_guide_w": 0.0,
+        "guide_as_filter_only": false,
+        "guide_with_gt": false,
+        "guide_clean": false
+    },
+    "goal_conditional": false,
+    "perturb_output_trajectory": false,
+    "perturb_opt_params": {
+        "optimizer": "adam",
+        "grad_steps": 30,
+        "perturb_th": 100.0,
+        "optimizer_params": {
+            "lr": 0.001
+        }
+    },
+    "filtration": false,
+    "num_filtration_samples": 5,
+    "guidance_optimization_params": {
+        "optimizer": "adam",
+        "lr": 0.3,
+        "grad_steps": 1,
+        "perturb_th": null
+    },
+    "denoising_params": {
+        "stride": 1,
+        "perturb_output_trajectory": false
+    },
+    "metrics": {
+        "compute_analytical_metrics": true,
+        "compute_learned_metrics": false
+    },
+   
+  
+
+  
+
+    "registered_name": "nusc_SC",
+    "save_action_samples": true,
+
+    "diffusion_specific_params": {
+        "stride": 1,
+        "apply_guidance_intermediate": true,
+        "apply_guidance_output": false,
+        "final_step_opt_params": {
+            "optimizer": "adam",
+            "lr": 0.3,
+            "grad_steps": 1,
+            "perturb_th": 1
+        }
+    },
+
+    "edits": {
+        "editing_source": [
+            "config",
+            "heuristic"
+        ],
+        "guidance_config": [
+            []
+        ],
+        "constraint_config": [],
+        "heuristic_config": [
+            {
+                "name": "agent_collision",
+                "weight": 50.0,
+                "params": {
+                    "num_disks": 2,
+                    "buffer_dist": 0.2,
+                    "decay_rate": 0.9,
+                    "excluded_agents": null
+                },
+                "agents": null
+            },
+            {
+                "name": "map_collision",
+                "weight": 1.0,
+                "params": {
+                    "num_points_lw": [
+                        10,
+                        10
+                    ],
+                    "decay_rate": 0.9
+                },
+                "agents": null
+            }
+        ]
+    }
+
+}

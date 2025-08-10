@@ -10,7 +10,7 @@
             "console": "integratedTerminal",
             "args": [
                 "--dataset_path",
-                "/home/visier/nuscenes",
+                " ../nuscenes",
                 "--debug",
                 "--config_name",
                 "trajdata_nusc_diff"
@@ -23,21 +23,30 @@
             "program": "${workspaceFolder}/CTG/scripts/cld_training.py",
             "console": "integratedTerminal",
             "args": [
-                // "--debug",
+                "--debug",
                 "--config_file",
-                "${workspaceFolder}/CTG/cld_config.json",
+                "../CTG/cld_config.json",
                 "--source_train",
                 "nusc_mini-mini_train",
                 "--source_valid",
                 "nusc_mini-mini_val",
-                "--nusc_trainval_dir",
-                "/home/visier/nuscenes",
-                "--nusc_mini_dir",
-                "/home/visier/nuscenes",
                 "--rebuild_cache",
                 "false",
                 // "--remove_exp_dir",
-                
+            ]
+        },
+        {
+            "name": "rollout",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/CTG/scripts/cld_scene_rollout.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--config_file",
+                "CTG/simulation_config.json",
+                "--env",
+                "trajdata",
+                "--render"
             ]
         }
     ]

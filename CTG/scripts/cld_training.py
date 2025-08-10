@@ -71,7 +71,7 @@ def main(cfg, auto_remove_exp_dir=False, debug=False):
     datamodule = datamodule_factory(
         cls_name=cfg.train.datamodule_class, config=cfg
     )
-    datamodule.setup()
+    # datamodule.setup()
 
     # Environment for close-loop evaluation
 

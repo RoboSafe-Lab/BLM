@@ -225,21 +225,21 @@ class PPO_Diffuser(nn.Module):
         feats_out = feats_out.reshape((B, T, -1))
         return feats_out
     def context_encoder(self, batch):
-        global_feat, grid_feat = self.map_encoder(batch.maps)
-        center_hist = self.center_hist(batch.center_hist_positions,       
-                                        batch.center_hist_yaws.unsqueeze(-1),
-                                        batch.center_hist_speeds,
-                                        batch.center_extent,
-                                        batch.center_hist_availabilities)
-        center_state = self.center_state(torch.cat([batch.center_curr_positions,
-                                                    batch.center_curr_speeds.unsqueeze(-1),
-                                                    batch.center_curr_yaws.unsqueeze(-1)],-1))
+        global_feat, grid_feat = self.map_encoder(batch['maps'])
+        center_hist = self.center_hist(batch['center_hist_positions'],       
+                                        batch['center_hist_yaws'].unsqueeze(-1),
+                                        batch['center_hist_speeds'],
+                                        batch['extent'],
+                                        batch['center_hist_availabilities'])
+        center_state = self.center_state(torch.cat([batch['center_curr_positions'],
+                                                    batch['center_curr_speeds'].unsqueeze(-1),
+                                                    batch['center_curr_yaws'].unsqueeze(-1)],-1))
         
-        neigh_hist = self.neighbor_hist(batch.neigh_hist_positions,
-                                        batch.neigh_hist_yaws.unsqueeze(-1),
-                                        batch.neigh_hist_speeds,
-                                        batch.neigh_extent,
-                                        batch.neigh_hist_availabilities)
+        neigh_hist = self.neighbor_hist(batch['neigh_hist_positions'],
+                                        batch['neigh_hist_yaws'].unsqueeze(-1),
+                                        batch['neigh_hist_speeds'],
+                                        batch['neigh_extent'],
+                                        batch['neigh_hist_availabilities'])
         cond_feat = self.process_cond_mlp(torch.cat([global_feat, center_hist, center_state, neigh_hist], -1))
         return cond_feat,grid_feat
 
@@ -247,8 +247,8 @@ class PPO_Diffuser(nn.Module):
 
         cond_feat, map_grid_feat = self.context_encoder(batch)
         
-        center_fut_action = torch.cat([batch.center_fut_acc_lons.unsqueeze(-1),
-                                batch.center_fut_yaw_rates.unsqueeze(-1)],dim=-1)
+        center_fut_action = torch.cat([batch['center_fut_acc_lons'].unsqueeze(-1),
+                                batch['center_fut_yaw_rates'].unsqueeze(-1)],dim=-1)
         
         scaled_action = self.scale_traj(center_fut_action).detach()
 
@@ -258,9 +258,9 @@ class PPO_Diffuser(nn.Module):
         noise_init = torch.randn_like(scaled_action)
         noised_action = self.q_sample(scaled_action, t, noise_init)
 
-        map_grid_traj = self.query_map_feats(batch.center_fut_positions.detach(),
+        map_grid_traj = self.query_map_feats(batch['center_fut_positions'].detach(),
                                                         map_grid_feat,
-                                                        batch.raster_from_center)#(B,T,32)
+                                                        batch['raster_from_center'])#(B,T,32)
         
         uncond_idx = torch.rand(scaled_action.shape[0], device=scaled_action.device) < p_drop
         cond_feat_zero = cond_feat.clone()
@@ -323,73 +323,113 @@ class PPO_Diffuser(nn.Module):
                     eta: float = 0.0, cfg_scale: float = 1.5, use_cfg: bool = True):
         # 1) 条件编码
         cond_feat, map_grid_feat = self.context_encoder(batch)
-        B = batch.center_fut_positions.size(0)
+        B = batch['center_fut_positions'].size(0)
         T = 50
         curr_state = torch.cat([
-            batch.center_curr_positions,
-            batch.center_curr_speeds.unsqueeze(-1),
-            batch.center_curr_yaws.unsqueeze(-1)
+            batch['center_curr_positions'],
+            batch['center_curr_speeds'].unsqueeze(-1),
+            batch['center_curr_yaws'].unsqueeze(-1)
         ], dim=-1)
 
         # 2) 生成DDIM时间步
         timesteps, next_timesteps = self.make_ddim_timesteps(
             self.ddim_steps, self.n_timesteps
         )
-        results = []
-
-        for _ in range(num_samples):
+           # for _ in range(num_samples):
             # 3) 初始化 x_T
-            x_t = torch.randn((B, T, 2), device=curr_state.device)
-            for t, t_next in zip(timesteps, next_timesteps):
-                t_tensor      = torch.full((B,), t,      dtype=torch.long, device=x_t.device)
-                t_next_tensor = torch.full((B,), t_next, dtype=torch.long, device=x_t.device)
+        x_t = torch.randn((B, T, 2), device=curr_state.device)
+        for t, t_next in zip(timesteps, next_timesteps):
+            t_tensor      = torch.full((B,), t,      dtype=torch.long, device=x_t.device)
+            t_next_tensor = torch.full((B,), t_next, dtype=torch.long, device=x_t.device)
+            
+            t_float = t_tensor.float() / (self.n_timesteps - 1)
+
+            # 4) 解码当前位置用于地图特征查询
+            pred_positions = self.convert_action_to_state_and_action(x_t, curr_state,True,True)[..., :2]  # [B, T, 2]
+            
+            # 5) 查询地图轨迹特征
+            map_grid_traj = self.query_map_feats(
+                pred_positions, map_grid_feat,
+                batch['raster_from_center']
+            )
+            raw_logits_cond, mu_cond, log_sigma_cond= self.model(x_t, cond_feat, t_float, map_grid_feat, map_grid_traj)
+            if use_cfg:
+                cond_zero      = torch.zeros_like(cond_feat)
+                map_grid_traj_zero = torch.zeros_like(map_grid_traj)
+
+                raw_logits_un, mu_un, log_sigma_un = self.model(x_t, cond_zero, t_float, map_grid_feat, map_grid_traj_zero)
                 
-                t_float = t_tensor.float() / (self.n_timesteps - 1)
-
-                # 4) 解码当前位置用于地图特征查询
-                action_denorm = self.descale_traj(x_t)
-                pred_positions = self.convert_action_to_state_and_action(
-                    self.dyn, action_denorm, curr_state
-                )[..., :2]  # [B, T, 2]
-                
-                # 5) 查询地图轨迹特征
-                map_grid_traj = self.query_map_feats(
-                    pred_positions, map_grid_feat,
-                    batch.raster_from_center, batch.maps.shape[1:]
-                )
-                raw_logits_cond, mu_cond, log_sigma_cond= self.model(x_t, cond_feat, t_float, map_grid_feat, map_grid_traj)
-                if use_cfg:
-                    cond_zero      = torch.zeros_like(cond_feat)
-                    map_grid_traj_zero = torch.zeros_like(map_grid_traj)
-
-                    raw_logits_un, mu_un, log_sigma_un = self.model(x_t, cond_zero, t_float, map_grid_feat, map_grid_traj_zero)
-                    
-                    raw_logits = raw_logits_un + cfg_scale * (raw_logits_cond - raw_logits_un)
-                    mu         = mu_un + cfg_scale * (mu_cond   - mu_un)
-                    log_sigma  = log_sigma_un + cfg_scale * (log_sigma_cond - log_sigma_un)
-                else:
-                    raw_logits = raw_logits_cond
-                    mu         = mu_cond
-                    log_sigma  = log_sigma_cond
-                
-                pi = F.softmax(raw_logits, dim=-1)
-                
-                log_sigma = torch.clamp(log_sigma, min=-20, max=2)
-                sigma = torch.exp(log_sigma)
-                
+                raw_logits = raw_logits_un + cfg_scale * (raw_logits_cond - raw_logits_un)
+                mu         = mu_un + cfg_scale * (mu_cond   - mu_un)
+                log_sigma  = log_sigma_un + cfg_scale * (log_sigma_cond - log_sigma_un)
+            else:
+                raw_logits = raw_logits_cond
+                mu         = mu_cond
+                log_sigma  = log_sigma_cond
+            
+            pi = F.softmax(raw_logits, dim=-1)
+            
+            log_sigma = torch.clamp(log_sigma, min=-20, max=2)
+            sigma = torch.exp(log_sigma)
+            
 
 
-                mix_dist = self.mix_dist(x_t, pi, mu, sigma,t_tensor, t_next_tensor, eta)
-                x_t = mix_dist.sample()
+            mix_dist = self.mix_dist(x_t, pi, mu, sigma,t_tensor, t_next_tensor, eta)
+            x_t = mix_dist.sample()
 
 
 
-            # 8) 最后解码完整状态
-            u_denorm = self.descale_traj(x_t)
-            full_states = self.convert_action_to_state_and_action(
-                self.dyn, u_denorm, curr_state
-            )  # [B, T, 4]
-            results.append({'full_states': full_states})
+        # 8) 最后解码完整状态
+ 
+        traj = self.convert_action_to_state_and_action(x_t, curr_state,True,True)  # [B, T, 4]
+        traj = traj[..., [0, 1, 3]] #(x,y,yaw)
 
-        return results
+        pred_positions = traj[..., :2]
+        pred_yaws = traj[..., 2:3]
+
+        out_dict = {
+            "trajectories": traj,
+            "predictions": {"positions": pred_positions, "yaws": pred_yaws},
+        }
+        return out_dict
     
+    def mix_dist(self,x_t, pi, mu, sigma_gmm, t_tensor, t_next_tensor, eta):
+ 
+        
+        alpha_t = extract(self.alphas_cumprod, t_tensor, x_t.shape)
+        alpha_next = extract(self.alphas_cumprod, t_next_tensor, x_t.shape)
+        
+        sqrt_alpha_t = torch.sqrt(alpha_t).unsqueeze(-1)
+        sqrt_one_minus_alpha_t = torch.sqrt((1 - alpha_t).clamp_min(1e-8)).unsqueeze(-1)
+        
+        # 计算eps_pred
+        eps_pred = (x_t.unsqueeze(2) - sqrt_alpha_t * mu) / sqrt_one_minus_alpha_t
+        
+        # DDIM方差
+        sigma_t = eta * torch.sqrt(
+            ((1 - alpha_t / alpha_next) * (1 - alpha_next) / (1 - alpha_t)).clamp_min(1e-8)
+        ).unsqueeze(-1)
+        
+        # 均值计算
+        mu_t = (
+            torch.sqrt(alpha_next).unsqueeze(-1) * mu
+            + torch.sqrt((1 - alpha_next).unsqueeze(-1) - sigma_t**2) * eps_pred
+        )
+        
+        if eta == 0:
+            # 确定性DDIM：每个分量都是确定性的
+            # 使用很小的方差来近似Dirac delta分布
+            min_sigma = 1e-8
+            sigma_combined = torch.full_like(mu_t, min_sigma)
+        else:
+            # 随机DDIM：组合GMM方差和DDIM方差
+            var_combined = alpha_next.unsqueeze(-1) * (sigma_gmm**2) + sigma_t**2
+            sigma_combined = torch.sqrt(var_combined)
+        
+        # 构造混合分布
+        comp_dist = Independent(Normal(mu_t, sigma_combined), 1)
+        mix_dist = MixtureSameFamily(
+            mixture_distribution=Categorical(pi),
+            component_distribution=comp_dist
+        )
+        return mix_dist

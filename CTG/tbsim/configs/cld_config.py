@@ -82,7 +82,7 @@ class CLDAlgoConfig(AlgoConfig):
     def __init__(self):
         super(CLDAlgoConfig, self).__init__()
 
-
+        self.eval_class = "diffuser_ppo"
         self.name = "diffuser_ppo"
 
         self.scene_agent_max_neighbor_dist = 30 # used only when data_centric == 'scene' and coordinate == 'agent'

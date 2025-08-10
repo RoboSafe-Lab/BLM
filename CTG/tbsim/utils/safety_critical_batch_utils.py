@@ -159,16 +159,19 @@ def parse_scene_centric(batch: SceneBatch):
     return d
 
 @torch.no_grad()
-def parse_node_centric(batch: AgentBatch):
+def parse_node_centric(batch: dict):
     maybe_pad_neighbor(batch)
-    center_fut_pos, center_fut_speed, center_fut_yaw, center_fut_acc_lon, center_fut_yaw_rate, center_fut_mask = trajdata2posyawspeed_acc(batch.agent_fut,0.1)
-    center_hist_pos, center_hist_speed, center_hist_yaw, center_hist_acc_lon, center_hist_yaw_rate, center_hist_mask = trajdata2posyawspeed_acc(batch.agent_hist,0.1)
+    center_fut_pos, center_fut_speed, center_fut_yaw, center_fut_acc_lon, center_fut_yaw_rate, center_fut_mask = trajdata2posyawspeed_acc(batch['agent_fut'],0.1)
+    center_hist_pos, center_hist_speed, center_hist_yaw, center_hist_acc_lon, center_hist_yaw_rate, center_hist_mask = trajdata2posyawspeed_acc(batch['agent_hist'],0.1)
     
-    neigh_fut_pos, neigh_fut_speed, neigh_fut_yaw, neigh_fut_acc_lon, neigh_fut_yaw_rate, neigh_fut_mask = trajdata2posyawspeed_acc(batch.neigh_fut,0.1)
-    neigh_hist_pos, neigh_hist_speed, neigh_hist_yaw, neigh_hist_acc_lon, neigh_hist_yaw_rate, neigh_hist_mask = trajdata2posyawspeed_acc(batch.neigh_hist,0.1)
+    neigh_fut_pos, neigh_fut_speed, neigh_fut_yaw, neigh_fut_acc_lon, neigh_fut_yaw_rate, neigh_fut_mask = trajdata2posyawspeed_acc(batch['neigh_fut'],0.1)
+    neigh_hist_pos, neigh_hist_speed, neigh_hist_yaw, neigh_hist_acc_lon, neigh_hist_yaw_rate, neigh_hist_mask = trajdata2posyawspeed_acc(batch['neigh_hist'],0.1)
     
-    ego_fut_pos, ego_fut_speed, ego_fut_yaw, ego_fut_acc_lon, ego_fut_yaw_rate, ego_fut_mask = trajdata2posyawspeed_acc(batch.robot_fut,0.1)
-    
+    # ego_fut_pos, ego_fut_speed, ego_fut_yaw, ego_fut_acc_lon, ego_fut_yaw_rate, ego_fut_mask = trajdata2posyawspeed_acc(batch.robot_fut,0.1)
+    curr_state = batch["curr_agent_state"]
+    curr_yaw = curr_state.heading[...,0]
+    curr_pos = curr_state.position
+
     center_curr_pos = center_hist_pos[:, -1]
     center_curr_yaw = center_hist_yaw[:, -1]
     center_curr_speed = center_hist_speed[:, -1]
@@ -178,39 +181,39 @@ def parse_node_centric(batch: AgentBatch):
     neigh_curr_speed = neigh_hist_speed[:,:, -1]
 
 
-    agent_hist_extent = batch.agent_hist_extent
+    agent_hist_extent = batch['agent_hist_extent']
     agent_hist_extent[torch.isnan(agent_hist_extent)] = 0.
 
     # mask out invalid extents
-    neigh_hist_extents = batch.neigh_hist_extents
+    neigh_hist_extents = batch['neigh_hist_extents']
     neigh_hist_extents[torch.isnan(neigh_hist_extents)] = 0.
 
-    world_from_agents = torch.inverse(batch.agents_from_world_tf)
+    world_from_agents = torch.inverse(batch['agents_from_world_tf'])
     
-    map_res = batch.maps_resolution[0]
-    h, w = batch.maps.shape[-2:]
+    map_res = batch['maps_resolution'][0]
+    h, w = batch['maps'].shape[-2:]
     raster_from_agent = torch.Tensor([
         [map_res, 0, 0.25 * w],
         [0, map_res, 0.5 * h],
         [0, 0, 1]
     ]).to(center_fut_pos.device)
     
-    bsize = batch.agents_from_world_tf.shape[0]
+    bsize = batch['agents_from_world_tf'].shape[0]
     agent_from_raster = torch.inverse(raster_from_agent)
     raster_from_agent = TensorUtils.unsqueeze_expand_at(raster_from_agent, size=bsize, dim=0)
     agent_from_raster = TensorUtils.unsqueeze_expand_at(agent_from_raster, size=bsize, dim=0)
-    raster_from_world = torch.bmm(raster_from_agent, batch.agents_from_world_tf)
+    raster_from_world = torch.bmm(raster_from_agent, batch['agents_from_world_tf'])
 
 
 
     drivable_map = None
-    if batch.maps is not None:
-        drivable_map = get_drivable_region_map(batch.maps)
+    if batch['maps'] is not None:
+        drivable_map = get_drivable_region_map(batch['maps'])
 
     extent_scale = 1.0
     d = dict(
-        maps=batch.maps,
-        map_names=batch.map_names,
+        maps=batch['maps'],
+        map_names=batch['map_names'],
         drivable_map=drivable_map,
         
         center_fut_positions=center_fut_pos,
@@ -249,14 +252,19 @@ def parse_node_centric(batch: AgentBatch):
         neigh_hist_yaw_rates=neigh_hist_yaw_rate,
         neigh_hist_availabilities=neigh_hist_mask,
 
-        ego_fut_positions=ego_fut_pos,
-        ego_fut_speeds=ego_fut_speed,
-        ego_fut_yaws=ego_fut_yaw,
-        ego_fut_acc_lons=ego_fut_acc_lon,
-        ego_fut_yaw_rates=ego_fut_yaw_rate,
-        ego_fut_availabilities=ego_fut_mask,
-        
-        center_extent=agent_hist_extent.max(dim=-2)[0] * extent_scale,
+        # ego_fut_positions=ego_fut_pos,
+        # ego_fut_speeds=ego_fut_speed,
+        # ego_fut_yaws=ego_fut_yaw,
+        # ego_fut_acc_lons=ego_fut_acc_lon,
+        # ego_fut_yaw_rates=ego_fut_yaw_rate,
+        # ego_fut_availabilities=ego_fut_mask,
+        centroid=curr_pos,
+        yaw=curr_yaw,
+        curr_agent_state = curr_state,
+
+        agent_fut = batch['agent_fut'],
+
+        extent=agent_hist_extent.max(dim=-2)[0] * extent_scale,
         neigh_extent=neigh_hist_extents.max(dim=-2)[0] * extent_scale,
         
         raster_from_center=raster_from_agent,
@@ -264,30 +272,30 @@ def parse_node_centric(batch: AgentBatch):
         
         raster_from_world=raster_from_world,
         
-        center_from_world=batch.agents_from_world_tf,
-        world_from_center=world_from_agents,
+        center_from_world=batch['agents_from_world_tf'],
+        world_from_agent=world_from_agents,
 
     )
     return d
 def maybe_pad_neighbor(batch):
     """Pad neighboring agent's history to the same length as that of the ego using NaNs"""
-    hist_len = batch.agent_hist.shape[1]
-    fut_len = batch.agent_fut.shape[1]
-    b, a, neigh_len, _ = batch.neigh_hist.shape
-    device = batch.neigh_hist.device
+    hist_len = batch['agent_hist'].shape[1]
+    fut_len = batch['agent_fut'].shape[1]
+    b, a, neigh_len, _ = batch['neigh_hist'].shape
+    device = batch['neigh_hist'].device
     empty_neighbor = a == 0
-    device = batch.neigh_hist.device
+    device = batch['neigh_hist'].device
     if empty_neighbor:
-        batch.neigh_hist = torch.ones(b, 1, hist_len, batch.neigh_hist.shape[-1]).to(device) * torch.nan
-        batch.neigh_fut = torch.ones(b, 1, fut_len, batch.neigh_fut.shape[-1]).to(device) * torch.nan
-        batch.neigh_types = torch.zeros(b, 1).to(device)
-        batch.neigh_hist_extents = torch.zeros(b, 1, hist_len, batch.neigh_hist_extents.shape[-1]).to(device)
-        batch.neigh_fut_extents = torch.zeros(b, 1, fut_len, batch.neigh_hist_extents.shape[-1]).to(device)
+        batch['neigh_hist'] = torch.ones(b, 1, hist_len, batch['neigh_hist'].shape[-1]).to(device) * torch.nan
+        batch['neigh_fut'] = torch.ones(b, 1, fut_len, batch['neigh_fut'].shape[-1]).to(device) * torch.nan
+        batch['neigh_types'] = torch.zeros(b, 1).to(device)
+        batch['neigh_hist_extents'] = torch.zeros(b, 1, hist_len, batch['neigh_hist_extents'].shape[-1]).to(device)
+        batch['neigh_fut_extents'] = torch.zeros(b, 1, fut_len, batch['neigh_hist_extents'].shape[-1]).to(device)
     elif neigh_len < hist_len:
-        hist_pad = torch.ones(b, a, hist_len - neigh_len, batch.neigh_hist.shape[-1], device=device).to(device) * torch.nan
-        batch.neigh_hist = torch.cat((hist_pad, batch.neigh_hist), dim=-2)
-        hist_pad = torch.zeros(b, a, hist_len - neigh_len, batch.neigh_hist_extents.shape[-1], device=device).to(device)
-        batch.neigh_hist_extents = torch.cat((hist_pad, batch.neigh_hist_extents), dim=-2)
+        hist_pad = torch.ones(b, a, hist_len - neigh_len, batch['neigh_hist'].shape[-1], device=device).to(device) * torch.nan
+        batch['neigh_hist'] = torch.cat((hist_pad, batch['neigh_hist']), dim=-2)
+        hist_pad = torch.zeros(b, a, hist_len - neigh_len, batch['neigh_hist_extents'].shape[-1], device=device).to(device)
+        batch['neigh_hist_extents'] = torch.cat((hist_pad, batch['neigh_hist_extents']), dim=-2)
     
 
 
@@ -395,25 +403,28 @@ def unwrap_torch(angles, dim=-1):
 
 
 
-class CustomTrajdataBatchUtils(BatchUtils):
 
-    @staticmethod
-    def parse_batch(data_batch: SceneBatch):
+
+@torch.no_grad()
+def parse_batch(data_batch):
         if hasattr(data_batch, "num_agents"):
             parsed_batch =  parse_scene_centric(data_batch)
         else:
             parsed_batch =  parse_node_centric(data_batch)
             
-            
-        for k in list(vars(data_batch).keys()):
-            if k not in parsed_batch:
-                delattr(data_batch, k)
-        for k, v in parsed_batch.items():
-            setattr(data_batch, k, v)
-        for k in parsed_batch:
-            val = getattr(data_batch, k)
-            if isinstance(val, torch.Tensor):
-                setattr(data_batch, k, val.nan_to_num(0.0))
-        return data_batch
+        # batch = dict(data_batch)
+        # batch.update(parsed_batch)  
+        # batch.pop("robot_fut", None)  
+        return parsed_batch
+        # for k in list(vars(data_batch).keys()):
+        #     if k not in parsed_batch:
+        #         delattr(data_batch, k)
+        # for k, v in parsed_batch.items():
+        #     setattr(data_batch, k, v)
+        # for k in parsed_batch:
+        #     val = getattr(data_batch, k)
+        #     if isinstance(val, torch.Tensor):
+        #         setattr(data_batch, k, val.nan_to_num(0.0))
+        # return data_batch
         
     

@@ -12,6 +12,7 @@ from tbsim.algos.algos import (
     STRIVETrafficModel,
     SceneDiffuserTrafficModel,
 )
+from tbsim.algos.safety_critical_diffusion import PPO_Diffusion_Trainer
 from tbsim.utils.batch_utils import batch_utils
 from tbsim.algos.multiagent_algos import MATrafficModel, HierarchicalAgentAwareModel
 from tbsim.configs.registry import get_registered_experiment_config
@@ -752,40 +753,7 @@ class STRIVE(PolicyComposer):
         )
         return policy, policy_cfg
 
-class Diffuser(PolicyComposer):
-    """Diffuser"""
-    def get_policy(self, policy=None):
-        if policy is not None:
-            assert isinstance(policy, DiffuserTrafficModel)
-            policy_cfg = None
-        else:
-            policy_ckpt_path, policy_config_path = get_checkpoint(
-                ngc_job_id=self.eval_config.ckpt.policy.ngc_job_id,
-                ckpt_key=self.eval_config.ckpt.policy.ckpt_key,
-                ckpt_dir=self.eval_config.ckpt.policy.ckpt_dir,
-                ckpt_root_dir=self.ckpt_root_dir,
-            )
-            policy_cfg = get_experiment_config_from_file(policy_config_path)
 
-            policy = DiffuserTrafficModel.load_from_checkpoint(
-                policy_ckpt_path,
-                algo_config=policy_cfg.algo,
-                modality_shapes=self.get_modality_shapes(policy_cfg),
-                registered_name=policy_cfg["registered_name"],
-            ).to(self.device).eval()
-            policy_cfg = policy_cfg.clone()
-        policy = PolicyWrapper.wrap_controller(
-            policy,
-            num_action_samples=self.eval_config.policy.num_action_samples,
-            class_free_guide_w=self.eval_config.policy.class_free_guide_w,
-            guide_as_filter_only=self.eval_config.policy.guide_as_filter_only,
-            guide_with_gt=self.eval_config.policy.guide_with_gt,
-            guide_clean=self.eval_config.policy.guide_clean,
-        )
-        # TBD: for debugging purpose
-        # policy = SceneCentricToAgentCentricWrapper(policy)
-        # policy = AgentCentricToSceneCentricWrapper(policy)
-        return policy, policy_cfg
 
 class DSPolicy(PolicyComposer):
     
@@ -836,6 +804,75 @@ class DSPolicy(PolicyComposer):
 
 
         return DiffStackPolicy(diff_args,device=self.device), exp_cfg
+
+class Diffuser(PolicyComposer):
+    """Diffuser"""
+    def get_policy(self, policy=None):
+        if policy is not None:
+            assert isinstance(policy, DiffuserTrafficModel)
+            policy_cfg = None
+        else:
+            policy_ckpt_path, policy_config_path = get_checkpoint(
+                ngc_job_id=self.eval_config.ckpt.policy.ngc_job_id,
+                ckpt_key=self.eval_config.ckpt.policy.ckpt_key,
+                ckpt_dir=self.eval_config.ckpt.policy.ckpt_dir,
+                ckpt_root_dir=self.ckpt_root_dir,
+            )
+            policy_cfg = get_experiment_config_from_file(policy_config_path)
+
+            policy = DiffuserTrafficModel.load_from_checkpoint(
+                policy_ckpt_path,
+                algo_config=policy_cfg.algo,
+                modality_shapes=self.get_modality_shapes(policy_cfg),
+                registered_name=policy_cfg["registered_name"],
+            ).to(self.device).eval()
+            policy_cfg = policy_cfg.clone()
+        policy = PolicyWrapper.wrap_controller(
+            policy,
+            num_action_samples=self.eval_config.policy.num_action_samples,
+            class_free_guide_w=self.eval_config.policy.class_free_guide_w,
+            guide_as_filter_only=self.eval_config.policy.guide_as_filter_only,
+            guide_with_gt=self.eval_config.policy.guide_with_gt,
+            guide_clean=self.eval_config.policy.guide_clean,
+        )
+        # TBD: for debugging purpose
+        # policy = SceneCentricToAgentCentricWrapper(policy)
+        # policy = AgentCentricToSceneCentricWrapper(policy)
+        return policy, policy_cfg
+
+class PPO_Diffuser(PolicyComposer):
+ 
+    def get_policy(self, policy=None):
+        if policy is not None:
+            assert isinstance(policy, PPO_Diffusion_Trainer)
+            policy_cfg = None
+        else:
+            policy_ckpt_path, policy_config_path = get_checkpoint(
+                ngc_job_id=self.eval_config.ckpt.policy.ngc_job_id,
+                ckpt_key=self.eval_config.ckpt.policy.ckpt_key,
+                ckpt_dir=self.eval_config.ckpt.policy.ckpt_dir,
+                ckpt_root_dir=self.ckpt_root_dir,
+            )
+            policy_cfg = get_experiment_config_from_file(policy_config_path)
+
+            policy = PPO_Diffusion_Trainer.load_from_checkpoint(
+                policy_ckpt_path,
+                algo_config=policy_cfg.algo,
+                modality_shapes=dict(image=(policy_cfg.env.rasterizer.num_sem_layers,
+                                            policy_cfg.env.rasterizer.raster_size, 
+                                            policy_cfg.env.rasterizer.raster_size)),
+                registered_name=policy_cfg["registered_name"],
+            ).to(self.device).eval()
+            policy_cfg = policy_cfg.clone()
+        policy = PolicyWrapper.wrap_controller(
+            policy,
+            num_action_samples=self.eval_config.policy.num_action_samples,
+            class_free_guide_w=self.eval_config.policy.class_free_guide_w,
+            guide_as_filter_only=self.eval_config.policy.guide_as_filter_only,
+            guide_with_gt=self.eval_config.policy.guide_with_gt,
+            guide_clean=self.eval_config.policy.guide_clean,
+        )
+        return policy, policy_cfg
 
 # --- scene-centric ---
 class SceneDiffuser(PolicyComposer):

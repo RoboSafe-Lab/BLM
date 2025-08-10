@@ -15,8 +15,8 @@ import torch
 from tbsim.utils.batch_utils import set_global_batch_type
 from tbsim.utils.trajdata_utils import set_global_trajdata_batch_env, set_global_trajdata_batch_raster_cfg
 from tbsim.configs.scene_edit_config import SceneEditingConfig
-from tbsim.utils.scene_edit_utils import guided_rollout, compute_heuristic_guidance, merge_guidance_configs
-from tbsim.evaluation.env_builders import EnvNuscBuilder, EnvUnifiedBuilder, EnvL5Builder
+from tbsim.utils.scene_edit_utils import guided_rollout, compute_heuristic_guidance, merge_guidance_configs,safety_critical_guided_rollout
+from tbsim.evaluation.env_builders import EnvNuscBuilder, EnvUnifiedBuilder, EnvL5Builder,EnvCLDBuilder
 from tbsim.utils.guidance_loss import verify_guidance_config_list
 
 from tbsim.policies.wrappers import (
@@ -73,44 +73,16 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
     print('policy', policy)
     if hasattr(policy, 'model'):
         policy_model = policy.model
-    # Set evaluation time sampling/optimization parameters
-    if eval_cfg.apply_guidance:
-        if eval_cfg.eval_class in ['SceneDiffuser', 'Diffuser', 'TrafficSim', 'BC', 'HierarchicalSampleNew']:
-            policy_model.set_guidance_optimization_params(eval_cfg.guidance_optimization_params)
-        if eval_cfg.eval_class in ['SceneDiffuser', 'Diffuser']:
-            policy_model.set_diffusion_specific_params(eval_cfg.diffusion_specific_params)
-    # ----------------------------------------------------------------------------------
 
-    # create env
-    if eval_cfg.env == "nusc":
-        env_builder = EnvNuscBuilder(eval_config=eval_cfg, exp_config=exp_config, device=device)
-        if "parse_obs" in exp_config.env.data_generation_params:
-            parse_obs=exp_config.env.data_generation_params.parse_obs
-        else:
-            parse_obs=True
-        env = env_builder.get_env(parse_obs=parse_obs)
-    elif eval_cfg.env == "trajdata":
-        env_builder = EnvUnifiedBuilder(eval_config=eval_cfg, exp_config=exp_config, device=device)
-        env = env_builder.get_env()
-    else:
-        raise NotImplementedError("{} is not a valid env".format(eval_cfg.env))
+
+
+    env_builder = EnvCLDBuilder(eval_config=eval_cfg, exp_config=exp_config, device=device)
+    env = env_builder.get_env()
+
 
     # eval loop
     obs_to_torch = eval_cfg.eval_class not in ["GroundTruth", "ReplayAction"]
 
-    heuristic_config = None
-    use_ui = False
-    if "ui" in eval_cfg.edits.editing_source:
-        # TODO if using UI, initialize UI
-        print("Using ONLY user interface to get scene edits...")
-        use_ui = True
-        raise NotImplementedError('UI')
-    elif "heuristic" in eval_cfg.edits.editing_source:
-        # verify heuristic args are valid
-        if eval_cfg.edits.heuristic_config is not None:
-            heuristic_config = eval_cfg.edits.heuristic_config
-        else:
-            heuristic_config = []
 
     render_rasterizer = None
     if render_to_video or render_to_img:
@@ -123,12 +95,12 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
                                                   raster_size=render_cfg['size'],
                                                   px_per_m=render_cfg['px_per_m'],
                                                   rebuild_maps=False,
-                                                  cache_location='~/.unified_data_cache')
+                                                  cache_location='~/cld_cache')
 
     result_stats = None
     scene_i = 0
     eval_scenes = eval_cfg.eval_scenes
-    while scene_i < eval_cfg.num_scenes_to_evaluate:
+    while scene_i < eval_cfg.num_scenes_to_evaluate: #(0 到100)
         scene_indices = eval_scenes[scene_i: scene_i + eval_cfg.num_scenes_per_batch]
         scene_i += eval_cfg.num_scenes_per_batch
         print('scene_indices', scene_indices)
@@ -169,82 +141,6 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
                 torch.cuda.empty_cache()
                 continue
 
-            if not use_ui:
-                # getting edits from either the config file or on-the-fly heuristics
-                if "config" in eval_cfg.edits.editing_source:
-                    guidance_config = eval_cfg.edits.guidance_config
-                    constraint_config  = eval_cfg.edits.constraint_config
-                if "heuristic" in eval_cfg.edits.editing_source:
-                    # reset so that we can get an example batch to initialize guidance more efficiently
-                    env.reset(scene_indices=scene_indices, start_frame_index=sim_start_frames)
-                    ex_obs = env.get_observation()
-                    if obs_to_torch:
-                        device = policy.device if device is None else device
-                        ex_obs = TensorUtils.to_torch(ex_obs, device=device, ignore_if_unspecified=True)
-
-                    # build heuristic guidance configs for these scenes
-                    heuristic_guidance_cfg = compute_heuristic_guidance(heuristic_config,
-                                                                        env,
-                                                                        sim_scene_indices,
-                                                                        sim_start_frames,
-                                                                        example_batch=ex_obs['agents'])
-                                                                        
-                    if len(heuristic_config) > 0:
-                        # we asked to apply some guidance, but if heuristic determined there was no valid
-                        #       guidance to apply (e.g. no social groups), we should skip these scenes.
-                        valid_scene_inds = []
-                        for sci, sc_cfg in enumerate(heuristic_guidance_cfg):
-                            if len(sc_cfg) > 0:
-                                valid_scene_inds.append(sci)
-
-                        # collect only valid scenes under the given heuristic config
-                        heuristic_guidance_cfg = [heuristic_guidance_cfg[vi] for vi in valid_scene_inds]
-                        sim_scene_indices = [sim_scene_indices[vi] for vi in valid_scene_inds]
-                        sim_start_frames = [sim_start_frames[vi] for vi in valid_scene_inds]
-                        # skip if no valid...
-                        if len(sim_scene_indices) == 0:
-                            print('No scenes with valid heuristic configs in this sim, skipping...')
-                            torch.cuda.empty_cache()
-                            continue
-
-                    # add to the current guidance config
-                    guidance_config = merge_guidance_configs(guidance_config, heuristic_guidance_cfg)
-            else:
-                # TODO get guidance from the UI
-                # TODO for UI, get edits from user. loop continuously until the user presses
-                #       "play" or something like that then we roll out.
-                raise NotImplementedError()
-        if len(sim_scene_indices) == 0:
-            print('No scenes with valid heuristic configs in this scene, skipping...')
-            torch.cuda.empty_cache()
-            continue
-
-        # remove agents from agent_collision guidance if they are in chosen gptcollision pair
-        for si in range(len(guidance_config)):
-            if len(guidance_config[si]) > 0:
-                agent_collision_heur_ind = None
-                gpt_collision_heur_ind = None
-                for i, cur_heur in enumerate(guidance_config[si]):
-                    if cur_heur['name'] == 'agent_collision':
-                        agent_collision_heur_ind = i
-                    elif cur_heur['name'] == 'gptcollision':
-                        gpt_collision_heur_ind = i
-                if agent_collision_heur_ind is not None and gpt_collision_heur_ind is not None:
-                        ind1 = guidance_config[si][gpt_collision_heur_ind]['params']['target_ind']
-                        ind2 = guidance_config[si][gpt_collision_heur_ind]['params']['ref_ind']
-                        excluded_agents = [ind1, ind2]
-                        guidance_config[si][agent_collision_heur_ind]['params']['excluded_agents'] = excluded_agents
-                        print('excluded_agents', excluded_agents)
-
-        # ----------------------------------------------------------------------------------
-        # Sampling Wrapper leveraging most existing policy composer sampling interfaces
-        from tbsim.policies.wrappers import NewSamplingPolicyWrapper
-        if eval_cfg.eval_class in ['TrafficSim', 'HierarchicalSampleNew']:
-            if scene_i == eval_cfg.num_scenes_per_batch or not isinstance(policy, NewSamplingPolicyWrapper):
-                policy = NewSamplingPolicyWrapper(policy, guidance_config)
-            else:
-                policy.update_guidance_config(guidance_config)
-        # ----------------------------------------------------------------------------------
 
         if eval_cfg.policy.pos_to_yaw:
             policy = Pos2YawWrapper(
@@ -254,23 +150,21 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
             )
         
         # right now assume control of full scene
-        rollout_policy = RolloutWrapper(agents_policy=policy)
+        rollout_policy = RolloutWrapper(ego_policy=policy, 
+                                        agents_policy=policy,
+                                        pass_agent_obs=True)
 
 
-        stats, info, renderings = guided_rollout(
+        stats, info, renderings = safety_critical_guided_rollout(
             env,
             rollout_policy,
             policy_model,
             n_step_action=eval_cfg.n_step_action,
-            guidance_config=guidance_config,
-            constraint_config=constraint_config,
             render=False, # render after the fact
             scene_indices=scene_indices,
             obs_to_torch=obs_to_torch,
             horizon=eval_cfg.num_simulation_steps,
             start_frames=sim_start_frames,
-            eval_class=eval_cfg.eval_class,
-            apply_guidance=eval_cfg.apply_guidance
         )    
 
         print(info["scene_index"])
@@ -509,7 +403,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--save_every_n_frames",
         type=int,
-        default=5,
+        default=1,
         help="saving videos while skipping every n frames"
     )
 
@@ -618,7 +512,7 @@ if __name__ == "__main__":
     run_scene_editor(
         cfg,
         save_cfg=True,
-        data_to_disk=True,
+        data_to_disk=False,
         render_to_video=args.render,
         render_to_img=args.render_img,
         render_cfg=render_cfg,
