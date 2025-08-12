@@ -39,7 +39,7 @@
       "trajdata_source_train": ["nusc_trainval-train","nusc_trainval-train_val"],
       "trajdata_source_valid": ["nusc_trainval-val"],
       
-      "rebuild_cache": false
+      "rebuild_cache": true
 
     },
 
@@ -105,7 +105,8 @@
       "horizon": 52,
       "n_diffusion_steps": 100,
       "ddim_steps": 20,
- 
+      "disable_control_on_stationary": "any_speed",
+      "moving_speed_th": 2,
 
       "dynamics": {
         "type": "Unicycle",

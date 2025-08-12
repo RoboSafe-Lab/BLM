@@ -94,7 +94,7 @@ class SimulationScene:
         return self.get_obs()
 
     def step(
-        self,
+        self, 
         new_xyzh_dict: Dict[str, StateArray],
         return_obs=True,
     ) -> Union[AgentBatch, Dict[str, Any]]:

@@ -10,7 +10,17 @@ from trajdata.data_structures.batch import AgentBatch, SceneBatch
 import numpy as np
 from trajdata.data_structures import SceneBatchElement,AgentBatchElement
 from trajdata.utils.arr_utils import angle_wrap
-
+BATCH_RASTER_CFG = None
+def set_global_trajdata_batch_raster_cfg(raster_cfg):
+    global BATCH_RASTER_CFG
+    assert "include_hist" in raster_cfg
+    assert "pixel_size" in raster_cfg
+    assert "raster_size" in raster_cfg
+    assert "ego_center" in raster_cfg
+    assert "num_sem_layers" in raster_cfg
+    assert "no_map_fill_value" in raster_cfg
+    assert "drivable_layers" in raster_cfg
+    BATCH_RASTER_CFG = raster_cfg
 def get_drivable_region_map(maps):
     if isinstance(maps, torch.Tensor):
         drivable = torch.amax(maps[..., -3:, :, :], dim=-3).bool()
@@ -189,12 +199,13 @@ def parse_node_centric(batch: dict):
     neigh_hist_extents[torch.isnan(neigh_hist_extents)] = 0.
 
     world_from_agents = torch.inverse(batch['agents_from_world_tf'])
-    
-    map_res = batch['maps_resolution'][0]
-    h, w = batch['maps'].shape[-2:]
+    raster_cfg = BATCH_RASTER_CFG
+    map_res = 1.0 / raster_cfg["pixel_size"]
+    h = w = raster_cfg["raster_size"]
+    ego_cent = raster_cfg["ego_center"]
     raster_from_agent = torch.Tensor([
-        [map_res, 0, 0.25 * w],
-        [0, map_res, 0.5 * h],
+        [map_res, 0, ((1.0 + ego_cent[0])/2.0) * w],
+        [0, map_res, ((1.0 + ego_cent[1])/2.0) * h],
         [0, 0, 1]
     ]).to(center_fut_pos.device)
     
@@ -412,9 +423,10 @@ def parse_batch(data_batch):
         else:
             parsed_batch =  parse_node_centric(data_batch)
             
-        # batch = dict(data_batch)
-        # batch.update(parsed_batch)  
-        # batch.pop("robot_fut", None)  
+        # 添加 extras 到 parsed_batch
+        if 'extras' in data_batch:
+            parsed_batch['extras'] = data_batch['extras']
+            
         return parsed_batch
         # for k in list(vars(data_batch).keys()):
         #     if k not in parsed_batch:

@@ -5,6 +5,7 @@ from tbsim.utils.safety_critical_batch_utils import parse_batch
 import torch.optim as optim
 import torch.nn as nn
 from tbsim.policies.common import Plan, Action
+from tbsim.utils.trajdata_utils import convert_scene_data_to_agent_coordinates,  add_scene_dim_to_agent_data, get_stationary_mask
 
 from tbsim.utils.safety_critical_fig_vis import plot_trajdata_batch
 
@@ -13,7 +14,9 @@ class PPO_Diffusion_Trainer(pl.LightningModule):
         super().__init__()
         self.algo_config = algo_config
         self.nets = nn.ModuleDict() 
-  
+        self.disable_control_on_stationary = algo_config.disable_control_on_stationary
+        self.moving_speed_th = algo_config.moving_speed_th
+    
 
         self.nets['policy'] = PPO_Diffuser(
             map_encoder_model_arch=algo_config.map_encoder_model_arch,
@@ -52,8 +55,7 @@ class PPO_Diffusion_Trainer(pl.LightningModule):
 
         self.cur_train_step = 0
     
-    def forward(self,obs):
-        pass
+   
 
     def on_train_batch_start(self, batch, batch_idx):
         return parse_batch(batch)
@@ -95,12 +97,18 @@ class PPO_Diffusion_Trainer(pl.LightningModule):
         current_lr = self.trainer.optimizers[0].param_groups[0]['lr']
         self.log('learning_rate', current_lr)
 
+    def forward(self,obs,global_t):
+        if global_t ==0:
+            self.stationary_mask = get_stationary_mask(obs, self.disable_control_on_stationary, self.moving_speed_th)
+            B = self.stationary_mask.shape[0]
+            stationary_mask_expand =  self.stationary_mask
+        return self.nets['policy'](obs, stationary_mask=stationary_mask_expand, global_t=global_t)
 
     def get_action(self, obs_torch, **kwargs):
-       
-        preds = self.nets['policy'].sample_ddim(obs_torch)["predictions"]
+        # plot_trajdata_batch(obs_torch,None)
+        preds = self(obs_torch, global_t=kwargs['step_index'])["predictions"]
         preds_positions = preds["positions"]
-        # plot_trajdata_batch(obs_torch,preds_positions)
+        # 
         preds_yaws = preds["yaws"]
 
         info = dict(

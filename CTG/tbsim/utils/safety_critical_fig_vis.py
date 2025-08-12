@@ -63,8 +63,8 @@ def plot_trajdata_batch(batch,preds_positions):
         fut_raster = transform_points_torch(fut_pos, raster_from_agent)
         axes[i].scatter(fut_raster[..., 0], fut_raster[..., 1], c='red', s=12, alpha=0.9, label='Ego Future')
 
-        preds_raster = transform_points_torch(preds_positions[idx].cpu(), raster_from_agent)
-        axes[i].scatter(preds_raster[..., 0], preds_raster[..., 1], c='yellow', s=5, alpha=0.9, label='Ego Predictions')
+        # preds_raster = transform_points_torch(preds_positions[idx].cpu(), raster_from_agent)
+        # axes[i].scatter(preds_raster[..., 0], preds_raster[..., 1], c='yellow', s=5, alpha=0.9, label='Ego Predictions')
 
         axes[i].set_title(f'Sample {idx}')
         # 只在第一个子图上添加图例

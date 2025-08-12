@@ -13,7 +13,8 @@ import os
 import torch
 
 from tbsim.utils.batch_utils import set_global_batch_type
-from tbsim.utils.trajdata_utils import set_global_trajdata_batch_env, set_global_trajdata_batch_raster_cfg
+from tbsim.utils.trajdata_utils import set_global_trajdata_batch_env
+from tbsim.utils.safety_critical_batch_utils import set_global_trajdata_batch_raster_cfg
 from tbsim.configs.scene_edit_config import SceneEditingConfig
 from tbsim.utils.scene_edit_utils import guided_rollout, compute_heuristic_guidance, merge_guidance_configs,safety_critical_guided_rollout
 from tbsim.evaluation.env_builders import EnvNuscBuilder, EnvUnifiedBuilder, EnvL5Builder,EnvCLDBuilder
@@ -152,7 +153,7 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
         # right now assume control of full scene
         rollout_policy = RolloutWrapper(ego_policy=policy, 
                                         agents_policy=policy,
-                                        pass_agent_obs=True)
+                                        pass_agent_obs=False)
 
 
         stats, info, renderings = safety_critical_guided_rollout(

@@ -355,7 +355,11 @@ class EnvCLDBuilder(EnvironmentBuilder):
             verbose=True,
             num_workers=os.cpu_count(),
             rebuild_cache=data_cfg.trajdata_rebuild_cache,
-            rebuild_maps=data_cfg.trajdata_rebuild_cache
+            rebuild_maps=data_cfg.trajdata_rebuild_cache,
+            extras={
+                "full_fut_traj": get_full_fut_traj,
+                "full_fut_valid": get_full_fut_valid,
+            },
         )
 
         env_dataset = FilteredUnifiedDataset(**kwargs)

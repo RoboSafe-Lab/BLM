@@ -845,6 +845,18 @@ class EnvSplitUnifiedSimulation(EnvUnifiedSimulation):
         
 
 class PPOEnvSplitUnifiedSimulation(EnvSplitUnifiedSimulation):
+    def _disable_offroad_agents(self, scene):
+        obs = scene.get_obs()
+        obs = parse_batch(obs)
+        obs_maps = verify_map(obs["maps"])
+        drivable_region = get_drivable_region_map(obs_maps)
+        raster_pos = transform_points_tensor(obs["centroid"][:, None], obs["raster_from_world"])[:, 0]
+        valid_agents = []
+        for i, rpos in enumerate(raster_pos):
+            if scene.agents[i].name == "ego" or drivable_region[i, int(rpos[1]), int(rpos[0])].item() > 0:
+                valid_agents.append(scene.agents[i])
+
+        scene.agents = valid_agents
     def get_observation(self,split_ego=None,return_raw=False):
         if split_ego is None:
             split_ego = self.split_ego
@@ -925,7 +937,7 @@ class PPOEnvSplitUnifiedSimulation(EnvSplitUnifiedSimulation):
         self.timers.tic("obs_skimp")
         raw_obs = []
         for si, scene in enumerate(self._current_scenes):
-            raw_obs.extend(scene.get_obs(collate=False))
+            raw_obs.extend(scene.get_obs(collate=False, get_map=False))
         obs = self.dataset.get_collate_fn(return_dict=True)(raw_obs)
         obs = parse_batch(obs)
         obs = TensorUtils.to_numpy(obs,ignore_if_unspecified=True)

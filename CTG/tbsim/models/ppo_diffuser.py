@@ -317,6 +317,10 @@ class PPO_Diffuser(nn.Module):
             x_out_all = x_out_all.reshape([B, N, T, -1])
         return x_out_all
 
+    def forward(self, obs, stationary_mask, global_t=0):
+        if global_t == 0:
+            self.stationary_mask = stationary_mask
+        return self.sample_ddim(obs)
 
     @torch.no_grad()
     def sample_ddim(self, batch, num_samples: int = 1, ddim_steps: int = 50, 
@@ -376,6 +380,13 @@ class PPO_Diffuser(nn.Module):
 
             mix_dist = self.mix_dist(x_t, pi, mu, sigma,t_tensor, t_next_tensor, eta)
             x_t = mix_dist.sample()
+
+            if self.stationary_mask is not None:
+                x_stationary = x_t[self.stationary_mask]
+                x_stationary = self.descale_traj(x_stationary, [4, 5])
+                x_stationary[...] = 0
+                x_stationary = self.scale_traj(x_stationary, [4, 5])
+                x_t[self.stationary_mask] = x_stationary
 
 
 
