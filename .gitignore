@@ -32,6 +32,10 @@ Thumbs.db
 # Logs
 *.log
 
+# SLURM output files
+slurm-*
+slurm*.out
+
 # Jupyter Notebook
 .ipynb_checkpoints
 
