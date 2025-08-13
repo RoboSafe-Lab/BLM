@@ -33,11 +33,9 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
     assert eval_cfg.env in ["nusc", "trajdata"], "Currently only nusc and trajdata environments are supported"
         
     set_global_batch_type("trajdata")
-    if eval_cfg.env == "nusc":
-        set_global_trajdata_batch_env("nusc_trainval")
-    elif eval_cfg.env == "trajdata":
-        # assumes all used trajdata datasets use share same map layers
-        set_global_trajdata_batch_env(eval_cfg.trajdata_source_test[0])
+
+    set_global_trajdata_batch_env(eval_cfg.trajdata_source_test[0])
+    
 
     # print(eval_cfg)
 

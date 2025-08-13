@@ -7,7 +7,7 @@ from tbsim.utils.timer import Timers
 
 from tbsim.utils.geometry_utils import batch_nd_transform_points_np
 from tbsim.utils.guidance_metrics import guidance_metrics_from_config, constraint_metrics_from_config
-from tbsim.utils.trajdata_utils import get_closest_lane_point_wrapper
+
 
 from trajdata.utils.arr_utils import transform_xyh_np, transform_coords_np
 import matplotlib.colors as mcolors

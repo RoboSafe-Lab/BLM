@@ -57,24 +57,24 @@ class PPO_Diffusion_Trainer(pl.LightningModule):
     
    
 
-    def on_train_batch_start(self, batch, batch_idx):
-        return parse_batch(batch)
 
-    def training_step_end(self, batch_parts):
+
+    def on_train_batch_end(self, outputs, batch, batch_idx):
         self.cur_train_step += 1
+        print(f"on_train_batch_end called! cur_train_step = {self.cur_train_step}")
 
     def training_step(self, batch, batch_idx):
-        
-        B = batch.center_fut_positions.shape[0]
+        print(f"training_step called! batch_idx = {batch_idx}")
+        batch = parse_batch(batch)
+        B = batch['center_fut_positions'].shape[0]
         loss= self.nets['policy'].compute_loss(batch)
         self.log('train_loss', loss, prog_bar=True, batch_size=B,on_step=True)
         return loss
-    
-    def on_validation_batch_start(self, batch, batch_idx):
-        return parse_batch(batch)
+
     
     def validation_step(self, batch, batch_idx):
-        B = batch.center_fut_positions.shape[0]
+        batch = parse_batch(batch)
+        B = batch['center_fut_positions'].shape[0]
         loss= self.nets['policy'].compute_loss(batch)
         self.log(f'val_loss', loss, prog_bar=True, batch_size=B,on_epoch=True)
         return loss

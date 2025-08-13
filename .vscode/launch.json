@@ -25,7 +25,7 @@
             "args": [
                 "--debug",
                 "--config_file",
-                "../CTG/cld_config.json",
+                "CTG/cld_config.json",
                 "--source_train",
                 "nusc_mini-mini_train",
                 "--source_valid",

@@ -22,10 +22,11 @@ def set_global_trajdata_batch_raster_cfg(raster_cfg):
     assert "drivable_layers" in raster_cfg
     BATCH_RASTER_CFG = raster_cfg
 def get_drivable_region_map(maps):
+    # Use the same layer logic as trajdata_utils: only the first drivable layer (typically layer 0 -> index -3)
     if isinstance(maps, torch.Tensor):
-        drivable = torch.amax(maps[..., -3:, :, :], dim=-3).bool()
+        drivable = torch.amax(maps[..., [-3], :, :], dim=-3).bool()
     else:
-        drivable = np.amax(maps[..., -3:, :, :], axis=-3).astype(bool)
+        drivable = np.amax(maps[..., [-3], :, :], axis=-3).astype(bool)
     return drivable
 
 def trajdata2posyawspeed_acc(state, dt=0.1):

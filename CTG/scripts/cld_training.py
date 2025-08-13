@@ -14,25 +14,16 @@ from tbsim.configs.registry import get_registered_experiment_config
 from tbsim.datasets.factory import datamodule_factory
 from tbsim.utils.config_utils import get_experiment_config_from_file
 from tbsim.utils.batch_utils import set_global_batch_type
-from tbsim.utils.trajdata_utils import set_global_trajdata_batch_env, set_global_trajdata_batch_raster_cfg
+from tbsim.utils.trajdata_utils import set_global_trajdata_batch_env
+from tbsim.utils.safety_critical_batch_utils import set_global_trajdata_batch_raster_cfg
 from tbsim.algos.factory import algo_factory
 
 os.environ["WANDB_DISABLE_CODE"] = "True"
 def main(cfg, auto_remove_exp_dir=False, debug=False):
     pl.seed_everything(cfg.seed)
-
-    if cfg.env.name == "l5kit":
-        set_global_batch_type("l5kit")
-    elif cfg.env.name in ["nusc", "trajdata"]:
-        set_global_batch_type("trajdata")
-        if cfg.env.name == "nusc":
-            set_global_trajdata_batch_env("nusc_trainval")
-        elif cfg.env.name == "trajdata":
-            # assumes all used trajdata datasets use share same map layers
-            set_global_trajdata_batch_env(cfg.train.trajdata_source_train[0])
-        set_global_trajdata_batch_raster_cfg(cfg.env.rasterizer) # determines cfg for rasterizing agents
-    else:
-        raise NotImplementedError("Env {} is not supported".format(cfg.env.name))
+    set_global_batch_type("trajdata")
+    set_global_trajdata_batch_env(cfg.train.trajdata_source_train[0])
+    set_global_trajdata_batch_raster_cfg(cfg.env.rasterizer) # determines cfg for rasterizing agents
 
     print("\n============= New Training Run with Config =============")
     # print(cfg)
