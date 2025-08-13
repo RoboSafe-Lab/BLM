@@ -60,8 +60,14 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
     # create policy and rollout wrapper
     policy_composers = importlib.import_module("tbsim.evaluation.policy_composers")
     composer_class = getattr(policy_composers, eval_cfg.eval_class)
-    composer = composer_class(eval_cfg, device)
-    policy, exp_config = composer.get_policy()
+    # composer = composer_class(eval_cfg, device)
+    # policy, exp_config = composer.get_policy()
+
+    ego_composer = composer_class(eval_cfg, device)
+    ego_policy, exp_config = ego_composer.get_policy()
+
+    agents_composer = composer_class(eval_cfg, device)
+    agents_policy, _ = agents_composer.get_policy()
     
     # determines cfg for rasterizing agents
     set_global_trajdata_batch_raster_cfg(exp_config.env.rasterizer)
@@ -69,9 +75,9 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
     # print(exp_config.algo)
     # ----------------------------------------------------------------------------------
     policy_model = None
-    print('policy', policy)
-    if hasattr(policy, 'model'):
-        policy_model = policy.model
+    print('policy', ego_policy)
+    if hasattr(ego_policy, 'model'):
+        policy_model = ego_policy.model
 
 
 
@@ -149,8 +155,8 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
             )
         
         # right now assume control of full scene
-        rollout_policy = RolloutWrapper(ego_policy=policy, 
-                                        agents_policy=policy,
+        rollout_policy = RolloutWrapper(ego_policy=ego_policy, 
+                                        agents_policy=agents_policy,
                                         pass_agent_obs=False)
 
 

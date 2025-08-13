@@ -10,6 +10,7 @@ from trajdata.data_structures.batch import AgentBatch, SceneBatch
 import numpy as np
 from trajdata.data_structures import SceneBatchElement,AgentBatchElement
 from trajdata.utils.arr_utils import angle_wrap
+from tbsim.utils.trajdata_utils import verify_map
 BATCH_RASTER_CFG = None
 def set_global_trajdata_batch_raster_cfg(raster_cfg):
     global BATCH_RASTER_CFG
@@ -21,6 +22,11 @@ def set_global_trajdata_batch_raster_cfg(raster_cfg):
     assert "no_map_fill_value" in raster_cfg
     assert "drivable_layers" in raster_cfg
     BATCH_RASTER_CFG = raster_cfg
+    
+    # Also set the global variable in the original trajdata_utils module
+    import tbsim.utils.trajdata_utils as trajdata_utils
+    trajdata_utils.BATCH_RASTER_CFG = raster_cfg
+    print(f"Set BATCH_RASTER_CFG in both modules: safety_critical_batch_utils and trajdata_utils")
 def get_drivable_region_map(maps):
     # Use the same layer logic as trajdata_utils: only the first drivable layer (typically layer 0 -> index -3)
     if isinstance(maps, torch.Tensor):
@@ -216,15 +222,21 @@ def parse_node_centric(batch: dict):
     agent_from_raster = TensorUtils.unsqueeze_expand_at(agent_from_raster, size=bsize, dim=0)
     raster_from_world = torch.bmm(raster_from_agent, batch['agents_from_world_tf'])
 
-
+    all_hist_pos = torch.cat((center_hist_pos[:, None], neigh_hist_pos.to(neigh_hist_pos.device)), dim=1)
+    
+    maps_rasterize_in = batch["maps"]
+    if maps_rasterize_in is None and BATCH_RASTER_CFG["include_hist"]:
+        maps_rasterize_in = torch.empty((bsize, 0, h, w)).to(all_hist_pos.device)
+    elif maps_rasterize_in is not None:
+        maps_rasterize_in = verify_map(maps_rasterize_in)
 
     drivable_map = None
     if batch['maps'] is not None:
-        drivable_map = get_drivable_region_map(batch['maps'])
+        drivable_map = get_drivable_region_map(maps_rasterize_in)
 
     extent_scale = 1.0
     d = dict(
-        maps=batch['maps'],
+        maps=maps_rasterize_in,
         map_names=batch['map_names'],
         drivable_map=drivable_map,
         

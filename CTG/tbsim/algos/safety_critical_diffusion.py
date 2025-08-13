@@ -102,6 +102,9 @@ class PPO_Diffusion_Trainer(pl.LightningModule):
             self.stationary_mask = get_stationary_mask(obs, self.disable_control_on_stationary, self.moving_speed_th)
             B = self.stationary_mask.shape[0]
             stationary_mask_expand =  self.stationary_mask
+        else:
+            stationary_mask_expand = None
+
         return self.nets['policy'](obs, stationary_mask=stationary_mask_expand, global_t=global_t)
 
     def get_action(self, obs_torch, **kwargs):

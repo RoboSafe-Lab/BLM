@@ -226,7 +226,6 @@ class EnvUnifiedSimulation(BaseEnv, BatchedEnv):
 
         for v in self._metrics.values():
             v.reset()
-
         return scenes_valid
 
     def render(self, actions_to_take):
@@ -581,6 +580,7 @@ class EnvSplitUnifiedSimulation(EnvUnifiedSimulation):
         scenes_valid = super(EnvSplitUnifiedSimulation,self).reset(scene_indices,start_frame_index)
         self._cached_raw_observation = None
         return scenes_valid
+  
 
     def render(self, actions_to_take):
         scene_ims = []
@@ -937,22 +937,28 @@ class PPOEnvSplitUnifiedSimulation(EnvSplitUnifiedSimulation):
         self.timers.tic("obs_skimp")
         raw_obs = []
         for si, scene in enumerate(self._current_scenes):
-            raw_obs.extend(scene.get_obs(collate=False, get_map=False))
+            raw_obs.extend(scene.get_obs(collate=False))
         obs = self.dataset.get_collate_fn(return_dict=True)(raw_obs)
         obs = parse_batch(obs)
         obs = TensorUtils.to_numpy(obs,ignore_if_unspecified=True)
         obs["scene_index"] = self.current_agent_scene_index
         obs["track_id"] = self.current_agent_track_id
         self.timers.toc("obs_skimp")
+
+        keys_to_take = [ 'drivable_map', 'center_fut_positions','map_names', \
+             'center_fut_yaws', 'center_fut_availabilities', 'center_hist_positions', 'center_hist_yaws', 'center_hist_availabilities',\
+             'center_curr_speeds', 'centroid', 'yaw',  'extent', 'raster_from_center', 'center_from_raster',\
+             'raster_from_world', 'center_from_world', 'world_from_agent', 'scene_index', 'track_id']
+        obs_selected = {k:v for k,v in obs.items() if k in keys_to_take}
         if split_ego:
             ego_mask = [name=="ego" for name in self.current_agent_names]
             agents_mask = [name!="ego" for name in self.current_agent_names]
-            ego_obs = TensorUtils.map_ndarray(obs, lambda x: x[ego_mask])
-            agents_obs = TensorUtils.map_ndarray(obs, lambda x: x[agents_mask])
+            ego_obs = TensorUtils.map_ndarray(obs_selected, lambda x: x[ego_mask])
+            agents_obs = TensorUtils.map_ndarray(obs_selected, lambda x: x[agents_mask])
             
             return dict(ego=ego_obs,agents=agents_obs)
         else:
-            return dict(agents=obs)
+            return dict(agents=obs_selected)
 
     def _step(self, step_actions: RolloutAction, num_steps_to_take):
         if self.is_done():
@@ -1038,3 +1044,133 @@ class PPOEnvSplitUnifiedSimulation(EnvSplitUnifiedSimulation):
             self._frame_index += num_steps_to_take
         print(self.timers)
         
+'''
+@torch.no_grad()
+def parse_node_centric(batch: dict):
+    maybe_pad_neighbor(batch)
+    fut_pos, fut_speed, fut_yaw, fut_acc_lon, yaw_rate, fut_mask = trajdata2posyawspeed_acc(batch['agent_fut'],0.1)
+    hist_pos, hist_speed, hist_yaw, hist_acc_lon, hist_yaw_rate, hist_mask = trajdata2posyawspeed_acc(batch['agent_hist'],0.1)
+
+
+    curr_speed = hist_speed[:, -1]
+    curr_state = batch["curr_agent_state"]
+    curr_yaw = curr_state.heading[...,0]
+    curr_pos = curr_state.position
+
+    agent_hist_extent = batch['agent_hist_extent']
+    agent_hist_extent[torch.isnan(agent_hist_extent)] = 0.
+    
+    neigh_fut_pos, neigh_fut_speed, neigh_fut_yaw, neigh_fut_acc_lon, neigh_fut_yaw_rate, neigh_fut_mask = trajdata2posyawspeed_acc(batch['neigh_fut'],0.1)
+    neigh_hist_pos, neigh_hist_speed, neigh_hist_yaw, neigh_hist_acc_lon, neigh_hist_yaw_rate, neigh_hist_mask = trajdata2posyawspeed_acc(batch['neigh_hist'],0.1)
+    
+    neigh_curr_speed = neigh_hist_speed[..., -1]
+
+    neigh_hist_extents = batch['neigh_hist_extents']
+    neigh_hist_extents[torch.isnan(neigh_hist_extents)] = 0.
+
+    world_from_agents = torch.inverse(batch['agents_from_world_tf'])
+    # ego_fut_pos, ego_fut_speed, ego_fut_yaw, ego_fut_acc_lon, ego_fut_yaw_rate, ego_fut_mask = trajdata2posyawspeed_acc(batch.robot_fut,0.1)
+    
+ 
+
+
+    neigh_curr_pos = neigh_hist_pos[..., -1]
+    neigh_curr_yaw = neigh_hist_yaw[..., -1]
+ 
+
+
+    raster_cfg = BATCH_RASTER_CFG
+    map_res = 1.0 / raster_cfg["pixel_size"]
+    h = w = raster_cfg["raster_size"]
+    ego_cent = raster_cfg["ego_center"]
+    raster_from_agent = torch.Tensor([
+        [map_res, 0, ((1.0 + ego_cent[0])/2.0) * w],
+        [0, map_res, ((1.0 + ego_cent[1])/2.0) * h],
+        [0, 0, 1]
+    ]).to(fut_pos.device)
+    
+    bsize = batch['agents_from_world_tf'].shape[0]
+    agent_from_raster = torch.inverse(raster_from_agent)
+    raster_from_agent = TensorUtils.unsqueeze_expand_at(raster_from_agent, size=bsize, dim=0)
+    agent_from_raster = TensorUtils.unsqueeze_expand_at(agent_from_raster, size=bsize, dim=0)
+    raster_from_world = torch.bmm(raster_from_agent, batch['agents_from_world_tf'])
+
+    all_hist_pos = torch.cat((hist_pos[:, None], neigh_hist_pos.to(neigh_hist_pos.device)), dim=1)
+    
+    maps_rasterize_in = batch["maps"]
+    if maps_rasterize_in is None and BATCH_RASTER_CFG["include_hist"]:
+        maps_rasterize_in = torch.empty((bsize, 0, h, w)).to(all_hist_pos.device)
+    elif maps_rasterize_in is not None:
+        maps_rasterize_in = verify_map(maps_rasterize_in)
+
+    drivable_map = None
+    if batch['maps'] is not None:
+        drivable_map = get_drivable_region_map(batch['maps'])
+
+    extent_scale = 1.0
+    d = dict(
+        maps=maps_rasterize_in,
+        map_names=batch['map_names'],
+        drivable_map=drivable_map,
+        
+        target_positions=fut_pos,
+        target_speeds=fut_speed,
+        target_yaws=fut_yaw,
+        target_acc_lons=fut_acc_lon,
+        target_yaw_rates=yaw_rate,
+        target_availabilities=fut_mask,
+
+        history_positions=hist_pos,
+        history_speeds=hist_speed,
+        history_yaws=hist_yaw,
+        history_acc_lons=hist_acc_lon,
+        history_yaw_rates=hist_yaw_rate,
+        history_availabilities=hist_mask,
+
+        current_positions=curr_pos,
+        curr_speed=curr_speed,
+        current_yaws=curr_yaw,
+        
+        neigh_curr_positions=neigh_curr_pos,
+        neigh_curr_speeds=neigh_curr_speed,
+        neigh_curr_yaws=neigh_curr_yaw,
+        
+        neigh_fut_positions=neigh_fut_pos,
+        neigh_fut_speeds=neigh_fut_speed,
+        neigh_fut_yaws=neigh_fut_yaw,
+        neigh_fut_acc_lons=neigh_fut_acc_lon,
+        neigh_fut_yaw_rates=neigh_fut_yaw_rate,
+        neigh_fut_availabilities=neigh_fut_mask,
+
+        neigh_hist_positions=neigh_hist_pos,
+        neigh_hist_speeds=neigh_hist_speed,
+        neigh_hist_yaws=neigh_hist_yaw,
+        neigh_hist_acc_lons=neigh_hist_acc_lon,
+        neigh_hist_yaw_rates=neigh_hist_yaw_rate,
+        neigh_hist_availabilities=neigh_hist_mask,
+
+        # ego_fut_positions=ego_fut_pos,
+        # ego_fut_speeds=ego_fut_speed,
+        # ego_fut_yaws=ego_fut_yaw,
+        # ego_fut_acc_lons=ego_fut_acc_lon,
+        # ego_fut_yaw_rates=ego_fut_yaw_rate,
+        # ego_fut_availabilities=ego_fut_mask,
+        centroid=curr_pos,
+        yaw=curr_yaw,
+        curr_agent_state = curr_state,
+
+        agent_fut = batch['agent_fut'],
+
+        extent=agent_hist_extent.max(dim=-2)[0] * extent_scale,
+        neigh_extent=neigh_hist_extents.max(dim=-2)[0] * extent_scale,
+        
+        raster_from_agent=raster_from_agent,
+        agent_from_raster=agent_from_raster,
+        
+        raster_from_world=raster_from_world,
+        
+        agent_from_world=batch['agents_from_world_tf'],
+        world_from_agent=world_from_agents,
+
+    )
+'''

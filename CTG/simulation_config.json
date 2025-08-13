@@ -27,7 +27,7 @@
     
     "ckpt": {
         "policy": {
-            "ckpt_dir": "CTG/safety_critical_trained_models/linux_Aug-07-12:25/run0/",
+            "ckpt_dir": "safety_critical_trained_models/linux_Aug-07-12:25/run0/",
             "ckpt_key": "iter90000.ckpt"
         },
         "planner": {
