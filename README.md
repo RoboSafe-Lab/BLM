@@ -7,8 +7,8 @@
 #### 步骤 1:下载项目 
 
 ```bash
-mkdir ~/safety-critical
-cd safety-critical
+mkdir ~/safety_critical
+cd safety_critical
 git clone --single-branch --branch sc https://github.com/RoboSafe-Lab/CLDPlus.git .
 ```
 #### 步骤 2:安装 创建conda环境
@@ -140,8 +140,8 @@ python scripts/parse_scene_edit_results.py --results_dir <rollout_results_dir> -
 ```
 
 ## Pre-trained models
-We have provided checkpoints for models of CTG and CTG++ [here](https://drive.google.com/drive/folders/17oYCNGTzBPWjKqvvA8JO67WswyI0j5vw?usp=sharing). 
-Note that the provided CTG model slightly differ from that in the original CTG paper. The main difference is that the prediction horizon is 52 rather than 20. The pre-trained models are provided under the **CC-BY-NC-SA-4.0 license**.
+Checkpoints for models of CTG and CTG++ [here](https://drive.google.com/drive/folders/17oYCNGTzBPWjKqvvA8JO67WswyI0j5vw?usp=sharing). 
+
 
 ## 连接ssh gateway
 #### 步骤 1: 连接到SSH网关

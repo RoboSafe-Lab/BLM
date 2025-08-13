@@ -7,7 +7,7 @@ import torch.nn as nn
 from tbsim.policies.common import Plan, Action
 from tbsim.utils.trajdata_utils import convert_scene_data_to_agent_coordinates,  add_scene_dim_to_agent_data, get_stationary_mask
 
-from tbsim.utils.safety_critical_fig_vis import plot_trajdata_batch
+
 
 class PPO_Diffusion_Trainer(pl.LightningModule):
     def __init__(self, algo_config, modality_shapes, registered_name):
@@ -105,6 +105,7 @@ class PPO_Diffusion_Trainer(pl.LightningModule):
         return self.nets['policy'](obs, stationary_mask=stationary_mask_expand, global_t=global_t)
 
     def get_action(self, obs_torch, **kwargs):
+        # from tbsim.utils.safety_critical_fig_vis import plot_trajdata_batch
         # plot_trajdata_batch(obs_torch,None)
         preds = self(obs_torch, global_t=kwargs['step_index'])["predictions"]
         preds_positions = preds["positions"]
