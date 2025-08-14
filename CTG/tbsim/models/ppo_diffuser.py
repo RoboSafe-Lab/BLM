@@ -4,13 +4,21 @@ import torch.nn.functional as F
 from .ppo_diffusion_model import ConvCrossAttnDiffuser
 import tbsim.models.base_models as base_models
 from torch.distributions import Categorical, Normal,Independent,MixtureSameFamily
-from tbsim.models.diffuser_helpers import (
-    AgentHistoryEncoder,
-    NeighborHistoryEncoder,
+# from tbsim.models.diffuser_helpers import (
+#     AgentHistoryEncoder,
+#     NeighborHistoryEncoder,
+#     MapEncoder,
+# )
+from tbsim.models.context_encoder import (
     MapEncoder,
+    AgentHistoryEncoder,
+    MLP,
+    NeighborHistoryEncoder
+
 )
+
+
 import numpy as np
-import tbsim.dynamics as dynamics
 from tbsim.utils.geometry_utils import transform_points_tensor
 from .diffuser_helpers import (
     cosine_beta_schedule,
@@ -24,29 +32,81 @@ from .context_encoder import ContextEncoder
 class PPO_Diffuser(nn.Module):
     def __init__(
         self, 
-        condition_encoder,
-        model_config,
-        diffuser_norm_info,
-        dynamics_kwargs,
-        n_timesteps=100,
+        map_encoder_model_arch,
+        input_image_shape,
+        global_feature_dim,
+        grid_feature_dim,
 
-        dt=0.1,
+        history_frames,
+        center_history_out_dim,
+        norm_info_center,
+
+        state_encoder_out_dim,
+
+        neighbor_history_out_dim,
+        norm_info_neighbor,
+
+        context_encoder_hidden_dim,
+        context_encoder_out_dim,
+
+        time_emb_dim,
+        diffusion_hidden_dim,
+        dilations,
+        num_heads,
+        num_Gaussian,
+
+
+        dynamics_kwargs,
+        n_timesteps,
+
+        dt,
      
 
 
     ):
         super().__init__()
 
-        self.context_encoder = ContextEncoder(condition_encoder)
-        self.model = ConvCrossAttnDiffuser(in_dim=2,
-                                            cond_dim=model_config["ContextFusion"]["out_dim"],
-                                            time_emb_dim = model_config["time_dim"],
-                                            hidden_dim = model_config["hidden_dim"],
-                                            out_dim = model_config["out_dim"],
-                                            dilations = model_config["dilations"],
-                                            n_heads = model_config["n_heads"],
-                                            grid_map_traj_dim = model_config["grid_map_traj_dim"],
-                                            mix_gauss = model_config["mix_gauss"])
+        cond_in_feat_size = 0
+
+        self.map_encoder = MapEncoder(model_arch=map_encoder_model_arch,
+                                    input_image_shape=input_image_shape,
+                                    global_feature_dim=global_feature_dim,
+                                    grid_feature_dim=grid_feature_dim)
+        cond_in_feat_size += global_feature_dim
+        
+        self.center_hist = AgentHistoryEncoder( num_steps=history_frames,
+                                                out_dim=center_history_out_dim,
+                                                norm_info=norm_info_center)
+
+        cond_in_feat_size += center_history_out_dim
+
+        # self.center_state = MLP(in_dim = 4,
+        #                         out_dim = state_encoder_out_dim,
+        #                         hidden_dims = (state_encoder_out_dim,state_encoder_out_dim))
+        # cond_in_feat_size += state_encoder_out_dim
+
+        self.neighbor_hist = NeighborHistoryEncoder(num_steps=history_frames,
+                                                    out_dim=neighbor_history_out_dim,
+                                                    norm_info=norm_info_neighbor)
+        cond_in_feat_size += neighbor_history_out_dim
+
+        combine_layer_dims = (cond_in_feat_size, cond_in_feat_size, context_encoder_hidden_dim, context_encoder_hidden_dim)
+        self.process_cond_mlp = MLP(in_dim = cond_in_feat_size,
+                                    out_dim = context_encoder_out_dim,
+                                    hidden_dims = combine_layer_dims)
+
+
+
+
+        self.model = ConvCrossAttnDiffuser( in_dim=2,
+                                            cond_dim = context_encoder_out_dim,
+                                            time_emb_dim = time_emb_dim,
+                                            hidden_dim = diffusion_hidden_dim,
+                                            out_dim = 2,
+                                            dilations = dilations,
+                                            n_heads = num_heads,
+                                            grid_map_traj_dim = grid_feature_dim,
+                                            mix_gauss = num_Gaussian)
 
 
         self._dynamics_kwargs = dynamics_kwargs
@@ -54,8 +114,8 @@ class PPO_Diffuser(nn.Module):
 
         self.dt = dt                               
 
-        norm_add_coeffs = diffuser_norm_info[0]
-        norm_div_coeffs = diffuser_norm_info[1]
+        norm_add_coeffs = norm_info_center[0]
+        norm_div_coeffs = norm_info_center[1]
         self.add_coeffs = np.array(norm_add_coeffs).astype('float32')
         self.div_coeffs = np.array(norm_div_coeffs).astype('float32')   
         print('self.add_coeffs', self.add_coeffs)
@@ -96,6 +156,7 @@ class PPO_Diffuser(nn.Module):
             (1. - alphas_cumprod_prev) * np.sqrt(alphas) / (1. - alphas_cumprod))
 
         self.default_chosen_inds = [4, 5]
+        self.input_image_shape = input_image_shape
 
 
     def _create_dynamics(self,config):
@@ -170,6 +231,28 @@ class PPO_Diffuser(nn.Module):
         feats_out = feats_out.reshape((B, T, -1))
         return feats_out
 
+    def context_encoder(self,batch):
+        global_feat, grid_feat = self.map_encoder(batch["maps"])
+        center_hist = self.center_hist(batch["center_hist_positions"],
+                                        batch["center_hist_speeds"],
+                                        batch["center_hist_yaws"],
+                                        batch["center_hist_acc_lons"],
+                                        batch["center_hist_yaw_rates"],
+                                        batch["extent"],
+                                        batch["center_hist_availabilities"])
+        # center_state = self.center_state(torch.cat([batch["center_curr_positions"],
+        #                                             batch["center_curr_speeds"].unsqueeze(-1),
+        #                                             batch["center_curr_yaws"].unsqueeze(-1)],-1))
+        
+        neigh_hist = self.neighbor_hist(batch["neigh_hist_positions"],
+                                        batch["neigh_hist_speeds"],
+                                        batch["neigh_hist_yaws"],
+                                        batch["neigh_hist_acc_lons"],
+                                        batch["neigh_hist_yaw_rates"],
+                                        batch["neigh_extent"][...,:2],
+                                        batch["neigh_hist_availabilities"])
+        cond_feat = self.process_cond_mlp(torch.cat([global_feat, center_hist, neigh_hist], -1))
+        return cond_feat,grid_feat
 
     def compute_loss(self, batch):
 
@@ -186,7 +269,7 @@ class PPO_Diffuser(nn.Module):
         noise_init = torch.randn_like(scaled_action)
         noised_action = self.q_sample(scaled_action, t, noise_init)
 
-        self.input_image_shape = batch['maps'].shape[1:]
+        
         map_grid_traj = self.query_map_feats(batch['center_fut_positions'].detach(),
                                                         map_grid_feat,
                                                         batch['raster_from_center'],

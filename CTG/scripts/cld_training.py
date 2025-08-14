@@ -206,7 +206,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--mix_gauss", type=int, default=None, help="mix_gauss"
+        "--num_Gaussian", type=int, default=None, help="num_Gaussian"
     )
     parser.add_argument(
         "--training_num_steps", type=int, default=None, help="training_num_steps"
@@ -253,7 +253,7 @@ if __name__ == "__main__":
   
 
     if args.mix_gauss is not None:
-        default_config.algo.mix_gauss = args.mix_gauss
+        default_config.algo.num_Gaussian = args.num_Gaussian
     if args.datamodule_class is not None:
         default_config.train.datamodule_class = args.datamodule_class
     if args.debug:

@@ -72,7 +72,7 @@ class AgentHistoryEncoder(nn.Module):
         self.state_dim = 10 # (x,y,hx,hy,s,l,w,avail)
         input_dim = num_steps * self.state_dim
         layer_dims = (input_dim, input_dim, out_dim, out_dim)
-        self.traj_mlp = base_models.MLP(input_dim, out_dim, layer_dims)
+        self.traj_mlp =  base_models.MLP(input_dim, out_dim, layer_dims)
         
     def forward(self,pos,speed,yaw,acc,yaw_rate,extent,avail):
         B, T, _ = pos.size()

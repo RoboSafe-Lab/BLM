@@ -19,11 +19,33 @@ class PPO_Diffusion_Trainer(pl.LightningModule):
     
 
         self.nets['policy'] = PPO_Diffuser(
-            condition_encoder = algo_config.condition_encoder,
-            model_config = algo_config.ConvCrossAttnDiffuser,
-            diffuser_norm_info = algo_config.norm_info_center,
+            map_encoder_model_arch=algo_config.map_encoder_model_arch,
+            input_image_shape = modality_shapes['image'],
+            global_feature_dim = algo_config.global_feature_dim,
+            grid_feature_dim = algo_config.grid_feature_dim,
+
+            history_frames = int(algo_config.history_num_frames+1),
+            center_history_out_dim = algo_config.center_history_out_dim,
+            norm_info_center = algo_config.norm_info_center,
+
+            state_encoder_out_dim = algo_config.state_encoder_out_dim,
+
+            neighbor_history_out_dim = algo_config.neighbor_history_out_dim,
+            norm_info_neighbor = algo_config.norm_info_neighbor,
+
+            context_encoder_hidden_dim = algo_config.context_encoder_hidden_dim,
+            context_encoder_out_dim = algo_config.context_encoder_out_dim,
+
+            time_emb_dim = algo_config.time_emb_dim,
+            diffusion_hidden_dim = algo_config.diffusion_hidden_dim,
+            dilations = algo_config.dilations,
+            num_heads = algo_config.num_heads,
+            num_Gaussian = algo_config.num_Gaussian,
 
             dynamics_kwargs = algo_config.Dynamics,
+            n_timesteps = algo_config.n_diffusion_steps,
+
+            dt = algo_config.dt,
      
           
         )

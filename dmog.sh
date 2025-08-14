@@ -18,9 +18,9 @@ export WANDB_APIKEY=1e2e2040243d63e8577d02a48e3881807e1944d5
 
 
 python ~/safety_critical/CTG/scripts/cld_training.py \
-    --config_file "CTG/cld_config.json" \
-    --rebuild_cache "true" \
-    --mix_gauss "5" \
+    --config_file "cld_config.json" \
+    --rebuild_cache "false" \
+    --num_Gaussian "5" \
     --training_num_steps 50000 \
     --name "dmog-k5"
 
