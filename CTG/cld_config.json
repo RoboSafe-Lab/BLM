@@ -31,7 +31,7 @@
         "batch_size": 32,
         "num_data_workers": 16,
         "every_n_steps": 2000,
-        "num_steps_per_epoch": 5
+        "num_steps_per_epoch": 50
       },
 
       "datamodule_class": "CLDDataModule",
@@ -98,7 +98,7 @@
       "attn_dilations": [1,2,4],
       "attn_n_heads": 4,
       "grid_map_traj_dim": 32,
-      "mix_gauss": 5,
+
 
       "name": "diffuser_ppo",  
       "scene_agent_max_neighbor_dist": 30,
@@ -108,13 +108,12 @@
       "disable_control_on_stationary": "any_speed",
       "moving_speed_th": 2,
 
-      "dynamics": {
+      "Dynamics":{
         "type": "Unicycle",
-        "max_steer": 0.3,
+        "max_steer": 0.25,  
         "max_yawvel": 2.0,
         "acce_bound": [-3,3],
-        "ddh_bound": [-6.283185307179586,6.283185307179586],
-        "max_speed": 40.0
+        "vbound": [0,8]
       },
 
       "optim_params": {
@@ -122,13 +121,66 @@
             "initial": 0.0002,
             "weight_decay": 1e-4
           } 
-        }
-   
-   
+        },
+
+      "condition_encoder":{
+        "MapEncoder": {
+          "model_arch": "resnet18",
+          "input_image_shape": [3, 224, 224],
+          "global_feature_dim": 128,
+          "grid_feature_dim": 32
+        },
+        "StateEncoder": {
+          "in_dim": 4,
+          "out_dim": 64,
+          "hidden_dims": [64]
+        },
+        "NeighborHistoryEncoder": {
+          "num_steps": 31,
+          "out_dim": 128
+        },
+        "AgentHistoryEncoder": {
+          "num_steps": 31,
+          "out_dim": 128
+        },
+        "ContextFusion": {
+          "out_dim": 256,
+          "hidden_dims": [128,128]
+        },
+       
+        "norm_info_neighbor":[
+          [1.7597,  1.6100, 3.9131, -0.0762, 0.0691, 0.0007, 3.6896],
+          [25.8932, 19.2935, 3.8771, 2.1291, 1.1453, 0.0894, 2.2774]
+        ],
+        "norm_info_center":[
+        [-1.1693, 0.0069, 0, 0.0001, 0.0146, 0.0003, 3.6896],
+        [7.5614,  1.0793, 1, 0.1002, 0.6766, 0.0533, 2.2774]
+      ]
+      },
+     
+      "ConvCrossAttnDiffuser": {
+        "ContextFusion": {
+          "out_dim": 256,
+          "hidden_dims": [128,128]
+        },
+        "out_dim": 2,
+        "hidden_dim": 64,
+        "time_dim": 32,
+        "dilations": [1,2,4,8],
+        "n_heads": 4,
+        "grid_map_dim": 32,
+        "grid_map_traj_dim": 32,
+        "mix_gauss": 5
+      },
+      "norm_info_center":[
+        [-1.1693, 0.0069, 0, 0.0001, 0.0146, 0.0003, 3.6896],
+        [7.5614,  1.0793, 1, 0.1002, 0.6766, 0.0533, 2.2774]
+      ]
+      
 
     },
     
-    "name": "test",
+    "name": "ceshi",
     "root_dir": "safety_critical_trained_models/",
     "seed": 42
 
