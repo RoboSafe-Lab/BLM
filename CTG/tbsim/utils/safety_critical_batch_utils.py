@@ -185,7 +185,7 @@ def parse_node_centric(batch: dict):
     neigh_hist_pos, neigh_hist_speed, neigh_hist_yaw, neigh_hist_acc_lon, neigh_hist_yaw_rate, neigh_hist_mask = trajdata2posyawspeed_acc(batch['neigh_hist'],0.1)
     
     # ego_fut_pos, ego_fut_speed, ego_fut_yaw, ego_fut_acc_lon, ego_fut_yaw_rate, ego_fut_mask = trajdata2posyawspeed_acc(batch.robot_fut,0.1)
-    curr_state = batch["curr_agent_state"]
+    curr_state = batch["curr_agent_state"]#NOTE:世界坐标系
     curr_yaw = curr_state.heading[...,0]
     curr_pos = curr_state.position
 

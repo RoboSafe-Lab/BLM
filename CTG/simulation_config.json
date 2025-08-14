@@ -12,14 +12,17 @@
 
     "trajdata":{
         "trajdata_cache_location": "../cld_cache",
+        "trajdata_data_dirs": {
+            "nusc_trainval": "../nuscenes",
+            "nusc_test": "../nuscenes",
+            "nusc_mini": "../nuscenes"
+        },
+        "trajdata_source_test": ["nusc_mini-mini_train"],
         "trajdata_rebuild_cache": false,
         "num_sim_per_scene": 1,
         "future_sec": 5.2,
         "history_sec": 3.0,
-        "trajdata_data_dirs":{
-            "nusc_trainval": "../nuscenes"
-        },
-        "num_scenes_to_evaluate": 1,
+        "num_scenes_to_evaluate": 5,
         "num_simulation_steps": 100,
         "n_step_action": 5
         

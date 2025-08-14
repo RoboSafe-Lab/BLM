@@ -148,8 +148,13 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
 
 
         if eval_cfg.policy.pos_to_yaw:
-            policy = Pos2YawWrapper(
-                policy,
+            ego_policy = Pos2YawWrapper(
+                ego_policy,
+                dt=exp_config.algo.step_time,
+                yaw_correction_speed=eval_cfg.policy.yaw_correction_speed
+            )
+            agents_policy = Pos2YawWrapper(
+                agents_policy,
                 dt=exp_config.algo.step_time,
                 yaw_correction_speed=eval_cfg.policy.yaw_correction_speed
             )
