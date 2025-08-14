@@ -47,3 +47,10 @@ slurm*.out
 # Data cache
 *_cache/
 cache/
+
+# Simulation results
+sc_simulation/
+
+# Media files
+*.png
+*.mp4
