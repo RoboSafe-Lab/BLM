@@ -128,9 +128,6 @@
       "ddim_steps": 20,
       "disable_control_on_stationary": "any_speed",
       "moving_speed_th": 2,
-
-      
-
       "optim_params": {
           "learning_rate": {
             "initial": 0.0002,
@@ -138,11 +135,7 @@
           } 
         }
 
-     
- 
-      
-
-    },
+      },
     
     "name": "ceshi",
     "root_dir": "safety_critical_trained_models/",

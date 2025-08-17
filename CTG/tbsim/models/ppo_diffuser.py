@@ -340,7 +340,7 @@ class PPO_Diffuser(nn.Module):
 
         # 2) 生成DDIM时间步
         timesteps, next_timesteps = self.make_ddim_timesteps(
-            self.ddim_steps, self.n_timesteps
+            ddim_steps, self.n_timesteps
         )
            # for _ in range(num_samples):
             # 3) 初始化 x_T

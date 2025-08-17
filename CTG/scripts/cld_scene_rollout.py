@@ -521,7 +521,7 @@ if __name__ == "__main__":
     cfg.lock()
     run_scene_editor(
         cfg,
-        save_cfg=True,
+        save_cfg=False,
         data_to_disk=False,
         render_to_video=args.render,
         render_to_img=args.render_img,

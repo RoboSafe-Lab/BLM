@@ -43,7 +43,7 @@
             "console": "integratedTerminal",
             "args": [
                 "--config_file",
-                "CTG/simulation_config.json",
+                "simulation_config.json",
                 "--env",
                 "trajdata",
                 "--render"

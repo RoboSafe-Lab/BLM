@@ -1,7 +1,6 @@
 {
-    "results_dir": "CTG/sc_simulation",
-    "name": "store_results",
-    "env": "trajdata",
+    "results_dir": "safety_critical_trained_models/k4",
+    "name": "rollout_results",
     "dataset_path": "../nuscenes",
     "eval_class": "PPO_Diffuser",
     "seed": 42,
@@ -22,7 +21,7 @@
         "num_sim_per_scene": 1,
         "future_sec": 5.2,
         "history_sec": 3.0,
-        "num_scenes_to_evaluate": 5,
+        "num_scenes_to_evaluate": 10,
         "num_simulation_steps": 100,
         "n_step_action": 5
         
@@ -30,8 +29,8 @@
     
     "ckpt": {
         "policy": {
-            "ckpt_dir": "safety_critical_trained_models/linux_Aug-07-12:25/run0/",
-            "ckpt_key": "iter90000.ckpt"
+            "ckpt_dir": "safety_critical_trained_models/k4",
+            "ckpt_key": "K4.ckpt"
         },
         "planner": {
             "ckpt_dir": null,
@@ -94,7 +93,7 @@
 
   
 
-    "registered_name": "nusc_SC",
+    "registered_name": "safety_critical",
     "save_action_samples": true,
 
     "diffusion_specific_params": {

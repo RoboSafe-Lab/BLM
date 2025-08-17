@@ -252,7 +252,7 @@ if __name__ == "__main__":
         default_config.train.trajdata_cache_location = args.trajdata_cache_location
   
 
-    if args.mix_gauss is not None:
+    if args.num_Gaussian is not None:
         default_config.algo.num_Gaussian = args.num_Gaussian
     if args.datamodule_class is not None:
         default_config.train.datamodule_class = args.datamodule_class
