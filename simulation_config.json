@@ -1,6 +1,6 @@
 {
     "results_dir": "safety_critical_trained_models/k4",
-    "name": "rollout_results",
+    "name": "demo2_ddim_50",
     "dataset_path": "../nuscenes",
     "eval_class": "PPO_Diffuser",
     "seed": 42,
@@ -21,7 +21,7 @@
         "num_sim_per_scene": 1,
         "future_sec": 5.2,
         "history_sec": 3.0,
-        "num_scenes_to_evaluate": 10,
+        "num_scenes_to_evaluate": 5,
         "num_simulation_steps": 100,
         "n_step_action": 5
         

@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from typing import Optional
 from .ppo_diffusion_model import ConvCrossAttnDiffuser
 import tbsim.models.base_models as base_models
 from torch.distributions import Categorical, Normal,Independent,MixtureSameFamily
@@ -60,6 +61,7 @@ class PPO_Diffuser(nn.Module):
         n_timesteps,
 
         dt,
+        ddim_steps,
      
 
 
@@ -157,7 +159,7 @@ class PPO_Diffuser(nn.Module):
 
         self.default_chosen_inds = [4, 5]
         self.input_image_shape = input_image_shape
-
+        self.ddim_steps = ddim_steps
 
     def _create_dynamics(self,config):
             self.dyn = Unicycle(
@@ -326,8 +328,10 @@ class PPO_Diffuser(nn.Module):
         return self.sample_ddim(obs)
 
     @torch.no_grad()
-    def sample_ddim(self, batch, num_samples: int = 1, ddim_steps: int = 50, 
-                    eta: float = 0.0, cfg_scale: float = 1.5, use_cfg: bool = True):
+    def sample_ddim(self, batch, 
+                    ddim_steps: Optional[int] = None, 
+                    eta=0.3, use_cfg= False):
+
         # 1) 条件编码
         cond_feat, map_grid_feat = self.context_encoder(batch)
         B = batch['center_fut_positions'].size(0)
@@ -339,6 +343,7 @@ class PPO_Diffuser(nn.Module):
         ], dim=-1)
 
         # 2) 生成DDIM时间步
+        ddim_steps = int(self.ddim_steps if ddim_steps is None else ddim_steps)
         timesteps, next_timesteps = self.make_ddim_timesteps(
             ddim_steps, self.n_timesteps
         )
@@ -366,9 +371,9 @@ class PPO_Diffuser(nn.Module):
 
                 raw_logits_un, mu_un, log_sigma_un = self.model(x_t, cond_zero, t_float, map_grid_feat, map_grid_traj_zero)
                 
-                raw_logits = raw_logits_un + cfg_scale * (raw_logits_cond - raw_logits_un)
-                mu         = mu_un + cfg_scale * (mu_cond   - mu_un)
-                log_sigma  = log_sigma_un + cfg_scale * (log_sigma_cond - log_sigma_un)
+                raw_logits = raw_logits_un + (raw_logits_cond - raw_logits_un)
+                mu         = mu_un + (mu_cond   - mu_un)
+                log_sigma  = log_sigma_un + (log_sigma_cond - log_sigma_un)
             else:
                 raw_logits = raw_logits_cond
                 mu         = mu_cond

@@ -119,13 +119,14 @@
         "acce_bound": [-3,3],
         "vbound": [0,8]
       },
+      "ddim_steps": 20,
 
 
 
       "name": "diffuser_ppo",  
       "scene_agent_max_neighbor_dist": 30,
    
-      "ddim_steps": 20,
+    
       "disable_control_on_stationary": "any_speed",
       "moving_speed_th": 2,
       "optim_params": {

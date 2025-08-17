@@ -46,7 +46,7 @@ class PPO_Diffusion_Trainer(pl.LightningModule):
             n_timesteps = algo_config.n_diffusion_steps,
 
             dt = algo_config.dt,
-     
+            ddim_steps = algo_config.ddim_steps,
           
         )
 
@@ -74,9 +74,6 @@ class PPO_Diffusion_Trainer(pl.LightningModule):
         loss= self.nets['policy'].compute_loss(batch)
         self.log(f'val_loss', loss, prog_bar=True, batch_size=B,on_epoch=True)
         return loss
-
-
-    
 
 
     def configure_optimizers(self):
