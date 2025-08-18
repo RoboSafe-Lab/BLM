@@ -201,7 +201,7 @@ def ppo_training(eval_cfg):
     result = onpolicy_trainer(
         policy=policy,
         train_collector=train_collector,
-        test_collector=None,
+        test_collector=test_collector,
         max_epoch=eval_cfg.ppo["ppo_epochs"],#100
         repeat_per_collect=eval_cfg.ppo["update_per_collect"],#10 每次从buffer中取出minibatch,更新次数
         step_per_collect=transitions_per_episode,# buffer中存满这些数据后，开始更新, 
