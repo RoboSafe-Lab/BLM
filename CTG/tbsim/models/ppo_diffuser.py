@@ -29,7 +29,7 @@ from .diffuser_helpers import (
 )
 from tbsim.dynamics import Unicycle
 import tbsim.utils.tensor_utils as TensorUtils
-from .context_encoder import ContextEncoder
+
 class PPO_Diffuser(nn.Module):
     def __init__(
         self, 
@@ -82,11 +82,6 @@ class PPO_Diffuser(nn.Module):
 
         cond_in_feat_size += center_history_out_dim
 
-        # self.center_state = MLP(in_dim = 4,
-        #                         out_dim = state_encoder_out_dim,
-        #                         hidden_dims = (state_encoder_out_dim,state_encoder_out_dim))
-        # cond_in_feat_size += state_encoder_out_dim
-
         self.neighbor_hist = NeighborHistoryEncoder(num_steps=history_frames,
                                                     out_dim=neighbor_history_out_dim,
                                                     norm_info=norm_info_neighbor)
@@ -97,9 +92,6 @@ class PPO_Diffuser(nn.Module):
                                     out_dim = context_encoder_out_dim,
                                     hidden_dims = combine_layer_dims)
 
-
-
-
         self.model = ConvCrossAttnDiffuser( in_dim=2,
                                             cond_dim = context_encoder_out_dim,
                                             time_emb_dim = time_emb_dim,
@@ -109,7 +101,6 @@ class PPO_Diffuser(nn.Module):
                                             n_heads = num_heads,
                                             grid_map_traj_dim = grid_feature_dim,
                                             mix_gauss = num_Gaussian)
-
 
         self._dynamics_kwargs = dynamics_kwargs
         self._create_dynamics(dynamics_kwargs)        
@@ -123,16 +114,12 @@ class PPO_Diffuser(nn.Module):
         print('self.add_coeffs', self.add_coeffs)
         print('self.div_coeffs', self.div_coeffs)    
 
-
-
         betas = cosine_beta_schedule(n_timesteps)
         alphas = 1. - betas
         alphas_cumprod = torch.cumprod(alphas, axis=0)
         alphas_cumprod_prev = torch.cat([torch.ones(1), alphas_cumprod[:-1]])
 
         self.n_timesteps = int(n_timesteps)
-
-
         self.register_buffer('betas', betas)
         self.register_buffer('alphas_cumprod', alphas_cumprod)
         self.register_buffer('alphas_cumprod_prev', alphas_cumprod_prev)
@@ -288,10 +275,6 @@ class PPO_Diffuser(nn.Module):
 
         return -logp.mean()
 
-
-
-
-
     def make_ddim_timesteps(self, ddim_steps: int, n_timesteps: int):
         c = torch.linspace(n_timesteps - 1, 0, ddim_steps, device=self.betas.device).long()
         next_c = list(c[1:].tolist()) + [0]
@@ -328,9 +311,7 @@ class PPO_Diffuser(nn.Module):
         return self.sample_ddim(obs)
 
     @torch.no_grad()
-    def sample_ddim(self, batch, 
-                    ddim_steps: Optional[int] = None, 
-                    eta=0.3, use_cfg= False):
+    def sample_ddim(self, batch, ddim_steps: Optional[int] = None, eta=0.3, use_cfg= False):
 
         # 1) 条件编码
         cond_feat, map_grid_feat = self.context_encoder(batch)
@@ -383,9 +364,6 @@ class PPO_Diffuser(nn.Module):
             
             log_sigma = torch.clamp(log_sigma, min=-20, max=2)
             sigma = torch.exp(log_sigma)
-            
-
-
             mix_dist = self.mix_dist(x_t, pi, mu, sigma,t_tensor, t_next_tensor, eta)
             x_t = mix_dist.sample()
 

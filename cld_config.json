@@ -129,6 +129,7 @@
     
       "disable_control_on_stationary": "any_speed",
       "moving_speed_th": 2,
+      "ppo_actor_hidden":64,
       "optim_params": {
           "learning_rate": {
             "initial": 0.0002,

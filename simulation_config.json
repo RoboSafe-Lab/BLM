@@ -62,86 +62,41 @@
         "guide_with_gt": false,
         "guide_clean": false
     },
-    "goal_conditional": false,
-    "perturb_output_trajectory": false,
-    "perturb_opt_params": {
-        "optimizer": "adam",
-        "grad_steps": 30,
-        "perturb_th": 100.0,
-        "optimizer_params": {
-            "lr": 0.001
-        }
-    },
-    "filtration": false,
-    "num_filtration_samples": 5,
-    "guidance_optimization_params": {
-        "optimizer": "adam",
-        "lr": 0.3,
-        "grad_steps": 1,
-        "perturb_th": null
-    },
-    "denoising_params": {
-        "stride": 1,
-        "perturb_output_trajectory": false
-    },
-    "metrics": {
-        "compute_analytical_metrics": true,
-        "compute_learned_metrics": false
+    "ppo":{
+        "learning_rate": 0.0002,
+        "gamma": 0.98,
+        "gae_lambda": 0.95,
+        "max_grad_norm": 0.5,
+        "clip_ratio": 0.2,
+        "vf_coef": 0.5,
+        "ent_coef": 0.005,
+        "wandb_project": "PPO_Diffuser",
+        "wandb_entity": "yx3006-heriot-watt-university",
+        "wandb_run_name": "K4_PPO",
+        "wandb_id": null,
+        
+        "episodes_per_collect": 40,
+        "ppo_epochs": 100,
+        "update_per_collect": 10,
+        "mini_batch_size": 64,
+        "test_episodes": 100
+
+ 
+
+        
+        
+
     },
    
   
 
   
 
-    "registered_name": "safety_critical",
-    "save_action_samples": true,
+    "registered_name": "safety_critical"
 
-    "diffusion_specific_params": {
-        "stride": 1,
-        "apply_guidance_intermediate": true,
-        "apply_guidance_output": false,
-        "final_step_opt_params": {
-            "optimizer": "adam",
-            "lr": 0.3,
-            "grad_steps": 1,
-            "perturb_th": 1
-        }
-    },
 
-    "edits": {
-        "editing_source": [
-            "config",
-            "heuristic"
-        ],
-        "guidance_config": [
-            []
-        ],
-        "constraint_config": [],
-        "heuristic_config": [
-            {
-                "name": "agent_collision",
-                "weight": 50.0,
-                "params": {
-                    "num_disks": 2,
-                    "buffer_dist": 0.2,
-                    "decay_rate": 0.9,
-                    "excluded_agents": null
-                },
-                "agents": null
-            },
-            {
-                "name": "map_collision",
-                "weight": 1.0,
-                "params": {
-                    "num_points_lw": [
-                        10,
-                        10
-                    ],
-                    "decay_rate": 0.9
-                },
-                "agents": null
-            }
-        ]
-    }
+
+
+
 
 }

@@ -17,7 +17,7 @@
             ]
         },
         {
-            "name": "cld test",
+            "name": "diffusion_training",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/CTG/scripts/cld_training.py",
@@ -47,6 +47,19 @@
                 "--env",
                 "trajdata",
                 "--render"
+            ]
+        },
+        {
+            "name": "ppo",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/CTG/scripts/ppo.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--config_file",
+                "simulation_config.json",
+                "--debug"
+          
             ]
         }
     ]
