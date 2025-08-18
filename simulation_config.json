@@ -16,7 +16,7 @@
             "nusc_test": "../nuscenes",
             "nusc_mini": "../nuscenes"
         },
-        "trajdata_source_test": ["nusc_mini-mini_train"],
+        "trajdata_source_test": ["nusc_trainval-train","nusc_trainval-train_val"],
         "trajdata_rebuild_cache": false,
         "num_sim_per_scene": 1,
         "future_sec": 5.2,
@@ -75,9 +75,9 @@
         "wandb_run_name": "K4_PPO",
         "wandb_id": null,
         
-        "episodes_per_collect": 5,
+        "episodes_per_collect": 40,
         "ppo_epochs": 100,
-        "update_per_collect": 10,
+        "update_per_collect": 20,
         "mini_batch_size": 64,
         "test_episodes": 100
 

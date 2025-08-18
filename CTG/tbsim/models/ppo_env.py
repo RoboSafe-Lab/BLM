@@ -51,12 +51,12 @@ def _to_device_batch(batch: dict, device):
     return out
 
 class PPOEnv(gym.Env):
-    def __init__(self,cfg,data_module, model):             
+    def __init__(self,cfg,data_module,dataloader, model):             
         super().__init__()
         # —— 1) 数据源 —— 
         self.data_module = data_module
-        self.data_module.setup("fit")
-        self.data_loader = data_module.train_dataloader()
+      
+        self.data_loader = dataloader
         self.iterator = cycle(self.data_loader)
 
         self.model = model
@@ -235,7 +235,7 @@ def compute_reward(pred_positions,
     road_r = compute_road_reward(pred_positions,drivable_map,raster_from_center)
 
     prox_r = compute_proximity_reward(pred_positions.squeeze(0),neigh_fut_positions.squeeze(0),
-                                    neigh_fut_availabilities)
+                                    neigh_fut_availabilities.squeeze(0))
     # 3) 加权合成
     reward = w_road * road_r  + w_proximity * prox_r
     return reward.detach().cpu().numpy()

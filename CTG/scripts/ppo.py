@@ -110,7 +110,10 @@ def build_save_best_fn(save_dir, actor, critic, wandb_run=None):
 
 def ppo_training(eval_cfg):
 
-        
+    # "trajdata_source_train": ["nusc_trainval-train","nusc_trainval-train_val"],
+    # "trajdata_source_valid": ["nusc_trainval-val"],
+    # "trajdata_source_train": ["nusc_mini-mini_train"],
+    # "trajdata_source_valid": ["nusc_mini-mini_val"],
     set_global_batch_type("trajdata")
     set_global_trajdata_batch_env(eval_cfg.trajdata_source_test[0])
     np.random.seed(eval_cfg.seed)
@@ -135,11 +138,12 @@ def ppo_training(eval_cfg):
     policy, exp_config = composer.get_policy()
 
     exp_config.train.training.batch_size = 1
+    exp_config.train.validation.batch_size = 1
 
     datamodule = datamodule_factory(
         cls_name=exp_config.train.datamodule_class, config=exp_config
     )
-
+    datamodule.setup("fit")
     # determines cfg for rasterizing agents
     set_global_trajdata_batch_raster_cfg(exp_config.env.rasterizer)
     
@@ -168,11 +172,11 @@ def ppo_training(eval_cfg):
     transitions_per_episode  = eval_cfg.ppo["episodes_per_collect"]  *  exp_config.algo.ddim_steps #40*50=2000
 
     train_collector = Collector(policy,
-                                PPOEnv(exp_config.algo, datamodule, policy_model), 
+                                PPOEnv(exp_config.algo, datamodule, datamodule.train_dataloader(), policy_model), 
                                 buffer= ReplayBuffer(size=transitions_per_episode),
                                 preprocess_fn=preprocess_fn)
     test_collector = Collector(policy,
-                                PPOEnv(exp_config.algo, datamodule, policy_model),
+                                PPOEnv(exp_config.algo, datamodule, datamodule.val_dataloader(), policy_model),
                                 preprocess_fn=preprocess_fn)
 
     if not eval_cfg.debug:
