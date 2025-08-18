@@ -55,10 +55,11 @@
             "request": "launch",
             "program": "${workspaceFolder}/CTG/scripts/ppo.py",
             "console": "integratedTerminal",
+            "justMyCode": false,
             "args": [
                 "--config_file",
                 "simulation_config.json",
-                "--debug"
+                // "--debug"
           
             ]
         }

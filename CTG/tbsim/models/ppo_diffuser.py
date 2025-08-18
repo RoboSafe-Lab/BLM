@@ -341,10 +341,8 @@ class PPO_Diffuser(nn.Module):
             pred_positions = self.convert_action_to_state_and_action(x_t, curr_state,True,True)[..., :2]  # [B, T, 2]
             
             # 5) 查询地图轨迹特征
-            map_grid_traj = self.query_map_feats(
-                pred_positions, map_grid_feat,
-                batch['raster_from_center']
-            )
+            map_grid_traj = self.query_map_feats(pred_positions, map_grid_feat, batch['raster_from_center'])
+
             raw_logits_cond, mu_cond, log_sigma_cond= self.model(x_t, cond_feat, t_float, map_grid_feat, map_grid_traj)
             if use_cfg:
                 cond_zero      = torch.zeros_like(cond_feat)

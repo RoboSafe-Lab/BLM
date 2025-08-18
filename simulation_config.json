@@ -1,6 +1,6 @@
 {
     "results_dir": "safety_critical_trained_models/k4",
-    "name": "demo2_ddim_50",
+    "name": "",
     "dataset_path": "../nuscenes",
     "eval_class": "PPO_Diffuser",
     "seed": 42,
@@ -75,11 +75,13 @@
         "wandb_run_name": "K4_PPO",
         "wandb_id": null,
         
-        "episodes_per_collect": 40,
+        "episodes_per_collect": 5,
         "ppo_epochs": 100,
         "update_per_collect": 10,
         "mini_batch_size": 64,
         "test_episodes": 100
+
+   
 
  
 

@@ -5,6 +5,7 @@ import numpy as np
 from tianshou.data import Batch
 from tbsim.utils.safety_critical_batch_utils import parse_batch
 import torch
+from tbsim.utils.geometry_utils import transform_points_tensor
 def preprocess_fn(
     obs=None, obs_next=None, rew=None, done=None, info=None,
     policy=None, env_id=None, act=None
@@ -82,8 +83,8 @@ class PPOEnv(gym.Env):
         })
         self.action_space = spaces.Box(-np.inf, np.inf, shape=(self.T, 2), dtype=np.float32)
 
-        self.w_road = cfg.ppo.w_road
-        self.w_proximity = cfg.ppo.w_proximity
+        self.w_road = cfg.w_road
+        self.w_proximity = cfg.w_proximity
 
     @staticmethod
     def _to_np(x):
@@ -98,8 +99,8 @@ class PPOEnv(gym.Env):
             "map_grid_feat":     self._to_np(self._map_grid_feat[0]),
             "raster_from_center":self._to_np(self._raster_from_center[0]),
             "curr_state":        self._to_np(self._curr_state[0]),
-            "current_step":      cs,
-            "next_step":         ns,
+            "current_step":      np.array(cs, dtype=np.int64),  # 确保是形状[1]的数组
+            "next_step":         np.array(ns, dtype=np.int64),  # 确保是形状[1]的数组
         }
 
     def reset(self, seed=42, options=None):
@@ -133,7 +134,8 @@ class PPOEnv(gym.Env):
         self._raster_from_center  = batch['raster_from_center']
 
         self._drivable_map = batch['drivable_map']
-
+        self._neigh_fut_positions = batch['neigh_fut_positions']
+        self._neigh_fut_availabilities = batch['neigh_fut_availabilities']
         return self._obs(terminated= False), {}
 
 
@@ -156,17 +158,18 @@ class PPOEnv(gym.Env):
             x_denorm = self.model.descale_traj(self.x_t)  # [1,T,2]
             pred_pos = self.model.convert_action_to_state_and_action(
                 x_denorm, self._curr_state,
-                scaled_input=False, descaled_output=True
+                scaled_input=True, descaled_output=True
             )[..., :2]  # [1,T,2]
 
             # 你自己的奖励函数（下面按你原先签名示例）
             reward = compute_reward(
-                pred_pos[0],
-                # None if self._drivable_map is None else self._drivable_map[0],
-                # None if self._neigh_pos   is None else self._neigh_pos[0],
-                # None if self._neigh_avail is None else self._neigh_avail[0],
-                # self._raster_from_center[0],
-                # self.w_road, self.w_prox
+                pred_pos,
+                self._drivable_map,
+                self._neigh_fut_positions,
+                self._neigh_fut_availabilities,
+                self._raster_from_center,
+                self.w_road,
+                self.w_proximity
             )
             reward = float(reward)
         else:
@@ -174,5 +177,65 @@ class PPOEnv(gym.Env):
 
         return self._obs(terminated=terminated), reward, bool(terminated), bool(truncated), {}
     
-def compute_reward(pred_pos):
-    return np.float32(1.0)
+def compute_road_reward(pred_positions,
+                        drivable_map,
+                        raster_from_center,               
+                        r_in: float = 0.1,                 # 在道路内给的正奖励
+                        r_out: float = -1.0 ):               # 出界惩罚
+
+    
+    
+    ego_px = transform_points_tensor(pred_positions, raster_from_center)  # (T,2)
+    ix = ego_px[..., 0].clamp(0, drivable_map.shape[1]-1).long()        # (T)
+    iy = ego_px[..., 1].clamp(0, drivable_map.shape[0]-1).long()        # (T)
+    flags = drivable_map[iy, ix]                                        # (T)
+    # 4) 映射到 [-1, r_in] 区间：在道内≈+r_in，出界≈r_out
+    reward_road = torch.where(flags > 0.5,
+                            torch.full_like(flags, r_in, dtype=torch.float32),
+                            torch.full_like(flags, r_out, dtype=torch.float32)).mean()
+    return reward_road
+
+
+
+def compute_proximity_reward(
+        pred_positions, neigh_fut_positions, neigh_fut_availabilities,
+        d_col: float = 0.5,     # 碰撞阈
+        d_tar: float = 1.5,     # 理想 near‑miss
+        sigma: float = 0.4,
+        hard_penalty: float = -1.0):
+
+    T = min(pred_positions.shape[-2], neigh_fut_positions.shape[-2])
+
+    dists = torch.norm(pred_positions[:T]- neigh_fut_positions[:, :T, :], dim=-1) # (N,T)
+
+    mask = neigh_fut_availabilities[:, :T].bool()
+    dists = torch.where(mask, dists, torch.full_like(dists, float('inf')))
+
+    dist_min = dists.min(dim=0).values  # (T)
+
+    # ---------- soft 奖励 ----------
+    r_soft = torch.exp(- (dist_min - d_tar) ** 2 / (2 * sigma ** 2))
+    # 只在 d_col < d <= d_tar 区间给奖励，其余置 0
+    r_soft = torch.where((dist_min > d_tar) | (dist_min < d_col),torch.zeros_like(r_soft), r_soft)
+
+    # ---------- hard 碰撞惩罚 ----------
+    r_hard = torch.where(dist_min < d_col,
+                        torch.full_like(r_soft, hard_penalty),
+                        torch.zeros_like(r_soft))
+
+    return (r_soft + r_hard).mean()
+
+def compute_reward(pred_positions,
+                drivable_map,
+                neigh_fut_positions,
+                neigh_fut_availabilities,
+                raster_from_center,
+                w_road: float = 1.0,
+                w_proximity: float = 1.0):
+    road_r = compute_road_reward(pred_positions,drivable_map,raster_from_center)
+
+    prox_r = compute_proximity_reward(pred_positions.squeeze(0),neigh_fut_positions.squeeze(0),
+                                    neigh_fut_availabilities)
+    # 3) 加权合成
+    reward = w_road * road_r  + w_proximity * prox_r
+    return reward.detach().cpu().numpy()

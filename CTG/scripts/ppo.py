@@ -19,6 +19,95 @@ from tbsim.datasets.factory import datamodule_factory
 from tbsim.models.ppo_env import PPOEnv,preprocess_fn
 from tianshou.utils import WandbLogger
 from torch.utils.tensorboard import SummaryWriter
+from torch.distributions import Categorical, Normal, Independent, MixtureSameFamily
+import os, time, json, torch, pytorch_lightning as pl
+def gmm_entropy_jensen_lower(mix: MixtureSameFamily):
+
+    cat  = mix.mixture_distribution               # Categorical
+    comp = mix.component_distribution             # Independent(Normal)
+    base = comp.base_dist                         # Normal
+
+    pi  = cat.probs                               # [..., K]
+    mu  = base.loc                                # [..., K, D]
+    var = (base.scale ** 2).clamp_min(1e-12)      # [..., K, D]
+
+    # 形状一致性检查
+    K = pi.shape[-1]
+    assert mu.shape[-2] == K and var.shape[-2] == K, "K 维不一致"
+    D = mu.shape[-1]
+    assert var.shape[-1] == D, "D 维不一致"
+
+    # 只围绕 K 维做两两组合：得到 [..., K_i, K_j, D]
+    var_i   = var.unsqueeze(-2)                   # [..., K, 1, D]
+    var_j   = var.unsqueeze(-3)                   # [..., 1, K, D]
+    var_sum = (var_i + var_j).clamp_min(1e-12)    # [..., K, K, D]
+
+    diff    = mu.unsqueeze(-2) - mu.unsqueeze(-3) # [..., K, K, D]
+    maha    = (diff.pow(2) / var_sum).sum(-1)     # [..., K, K]
+    logdet  = torch.log(2 * torch.pi * var_sum).sum(-1)  # [..., K, K]
+    log_norm = -0.5 * (maha + logdet)             # [..., K, K]
+
+    # 对 j 维做加权求和：log Σ_j π_j N(·)
+    log_pi    = torch.log(pi.clamp_min(1e-12))    # [..., K]
+    log_mix   = log_pi.unsqueeze(-2) + log_norm   # [..., K, K]  (π_j 广播到 j 维)
+    log_sumexp = torch.logsumexp(log_mix, dim=-1) # [..., K]     (sum over j)
+
+    # H ≥ - Σ_i π_i * log(...)
+    H_lb = -(pi * log_sumexp).sum(dim=-1)         # [...]
+    return H_lb
+
+# 打补丁（在创建 PPOPolicy 之前执行）
+MixtureSameFamily.entropy = gmm_entropy_jensen_lower
+
+
+def build_save_best_fn(save_dir, actor, critic, wandb_run=None):
+
+    os.makedirs(save_dir, exist_ok=True)
+    policy_best = os.path.join(save_dir, "policy_best.ckpt")
+    critic_best = os.path.join(save_dir, "critic_best.pth")
+    def _lightning_policy_ckpt(policy_model: torch.nn.Module):
+
+        sd = policy_model.state_dict()
+        sd_prefixed = {f"nets.policy.{k}": v.detach().cpu() for k, v in sd.items()}
+        
+        # 创建完整的 Lightning checkpoint 格式
+        ckpt = {
+            "state_dict": sd_prefixed,
+            "pytorch-lightning_version": pl.__version__,
+            "epoch": 0,
+            "global_step": 0,
+            "lr_schedulers": [],
+            "optimizer_states": [],
+            "datamodule_hyper_parameters": {},
+            "hyper_parameters": {},
+        }
+        return ckpt
+
+    def save_best_fn(ts_policy):  # Tianshou 会把 policy 传进来，但我们直接用外层闭包里的 actor/critic
+        # 1) 保存策略为 Lightning 兼容的 .ckpt
+        policy_model = actor.backbone.ppo  # 就是 PPO_Diffuser
+        ckpt = _lightning_policy_ckpt(policy_model)
+        torch.save(ckpt, policy_best)
+        print(f"[PPO] saved policy ckpt -> {policy_best}")
+
+        # 2) critic 单存 .pth（训练时会再 load）
+        torch.save({"critic": critic.state_dict()}, critic_best)
+        print(f"[PPO] saved critic pth  -> {critic_best}")
+
+        # 3) 可选：打到 wandb artifact
+        if wandb_run is not None:
+            import wandb
+            art = wandb.Artifact("ppo_rl", type="model")
+            art.add_file(policy_best)
+            art.add_file(critic_best)
+            wandb_run.log_artifact(art)
+
+    return save_best_fn
+
+
+
+
+
 def ppo_training(eval_cfg):
 
         
@@ -44,6 +133,8 @@ def ppo_training(eval_cfg):
 
     composer = composer_class(eval_cfg, device)
     policy, exp_config = composer.get_policy()
+
+    exp_config.train.training.batch_size = 1
 
     datamodule = datamodule_factory(
         cls_name=exp_config.train.datamodule_class, config=exp_config
@@ -103,18 +194,21 @@ def ppo_training(eval_cfg):
     else:
         logger = None
 
+    save_dir = os.path.join(eval_cfg.results_dir, "ppo_rl")
+    wandb_run = logger.wandb_run if logger is not None else None
+    save_best_fn = build_save_best_fn(save_dir, actor, critic, wandb_run)
     #--------------------- 3 * 1 * 50 --------------------------------------------
     result = onpolicy_trainer(
         policy=policy,
         train_collector=train_collector,
-        test_collector=test_collector,
+        test_collector=None,
         max_epoch=eval_cfg.ppo["ppo_epochs"],#100
         repeat_per_collect=eval_cfg.ppo["update_per_collect"],#10 每次从buffer中取出minibatch,更新次数
         step_per_collect=transitions_per_episode,# buffer中存满这些数据后，开始更新, 
         step_per_epoch=transitions_per_episode * 10,# 一个epoch有多少条episode
         episode_per_test= eval_cfg.ppo["test_episodes"],
         batch_size=eval_cfg.ppo["mini_batch_size"], #64
-        save_best_fn=None,
+        save_best_fn=save_best_fn,
         logger=logger,
         show_progress=True,
 
