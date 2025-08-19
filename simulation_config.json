@@ -75,11 +75,11 @@
         "wandb_run_name": "K4_PPO",
         "wandb_id": null,
         
-        "episodes_per_collect": 40,
+        "episodes_per_collect": 50,
         "ppo_epochs": 100,
         "update_per_collect": 20,
         "mini_batch_size": 64,
-        "test_episodes": 100
+        "test_episodes": 30
 
    
 

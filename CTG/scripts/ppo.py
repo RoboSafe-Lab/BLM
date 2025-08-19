@@ -157,7 +157,7 @@ def ppo_training(eval_cfg):
     backbone = DiffusionBackbone(policy_model)
     actor  = DiffusionActor(backbone,n_diffusion_steps=int(exp_config.algo.n_diffusion_steps)).to(device)
     critic = DiffusionCritic(backbone,n_diffusion_steps=int(exp_config.algo.n_diffusion_steps),
-                                        actor_hidden=exp_config.algo.ppo_actor_hidden).to(device)
+                                        actor_hidden=exp_config.algo.diffusion_hidden_dim).to(device)
 
 
 
@@ -177,11 +177,11 @@ def ppo_training(eval_cfg):
     transitions_per_episode  = eval_cfg.ppo["episodes_per_collect"]  *  exp_config.algo.ddim_steps #40*50=2000
 
     train_collector = Collector(policy,
-                                PPOEnv(exp_config.algo, datamodule.train_dataset, policy_model), 
+                                PPOEnv(exp_config.algo, datamodule.train_dataset, policy_model,exp_config.algo.ddim_steps), 
                                 buffer= ReplayBuffer(size=transitions_per_episode),
                                 preprocess_fn=preprocess_fn)
     test_collector = Collector(policy,
-                                PPOEnv(exp_config.algo, datamodule.valid_dataset, policy_model),
+                                PPOEnv(exp_config.algo, datamodule.valid_dataset, policy_model,exp_config.algo.ddim_steps),
                                 preprocess_fn=preprocess_fn)
 
   
