@@ -23,14 +23,14 @@
             "warm_start_n_steps": 0
         },
         "training": {
-            "batch_size": 1,
+            "batch_size": 128,
             "num_steps": 150000,
-            "num_data_workers": 0
+            "num_data_workers": 16
         },
         "validation": {
             "enabled": true,
-            "batch_size": 1,
-            "num_data_workers": 0,
+            "batch_size": 64,
+            "num_data_workers": 16,
             "every_n_steps": 1000,
             "num_steps_per_epoch": 50
         },
@@ -38,8 +38,13 @@
         "on_ngc": false,
         "datamodule_class": "CLDDataModule",
         "trajdata_cache_location": "~/cld_cache",
-        "trajdata_source_train": ["nusc_trainval-train","nusc_trainval-train_val"],
-        "trajdata_source_valid": ["nusc_trainval-val"],
+        "trajdata_source_train": [
+            "nusc_trainval-train",
+            "nusc_trainval-train_val"
+        ],
+        "trajdata_source_valid": [
+            "nusc_trainval-val"
+        ],
         "trajdata_data_dirs": {
             "nusc_trainval": "../nuscenes",
             "nusc_test": "../nuscenes",
@@ -267,11 +272,7 @@
             ]
         },
         "disable_control_on_stationary": "any_speed",
-        "moving_speed_th": 2,
-        "ppo_actor_hidden":64,
-        "w_road": 1.0,
-        "w_proximity": 1.0
-      
+        "moving_speed_th": 2
     },
     "eval": {
         "name": null,
