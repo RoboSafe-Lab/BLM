@@ -6,6 +6,10 @@ diffuser_trained_models/
 safety_critical_trained_models/viz/
 **/logs/log.txt
 
+# TensorBoard events
+events.out.tfevents.*
+**/events.out.tfevents.*
+
 # CTG specific directories
 CTG/videos/
 CTG/figures/
