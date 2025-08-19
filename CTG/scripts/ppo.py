@@ -21,6 +21,10 @@ from tianshou.utils import WandbLogger
 from torch.utils.tensorboard import SummaryWriter
 from torch.distributions import Categorical, Normal, Independent, MixtureSameFamily
 import os, time, json, torch, pytorch_lightning as pl
+import time
+from datetime import datetime
+import hashlib
+
 def gmm_entropy_jensen_lower(mix: MixtureSameFamily):
 
     cat  = mix.mixture_distribution               # Categorical
@@ -60,17 +64,34 @@ def gmm_entropy_jensen_lower(mix: MixtureSameFamily):
 MixtureSameFamily.entropy = gmm_entropy_jensen_lower
 
 
-def build_save_best_fn(save_dir, actor, critic, wandb_run=None):
+def create_config_hash(eval_cfg):
+    """创建基于关键配置参数的哈希值"""
+    key_params = {
+        'learning_rate': eval_cfg.ppo['learning_rate'],
+        'gamma': eval_cfg.ppo['gamma'],
+        'clip_ratio': eval_cfg.ppo['clip_ratio'],
+        'ent_coef': eval_cfg.ppo['ent_coef'],
+        'episodes_per_collect': eval_cfg.ppo['episodes_per_collect'],
+        'seed': eval_cfg.seed
+    }
+    config_str = json.dumps(key_params, sort_keys=True)
+    return hashlib.md5(config_str.encode()).hexdigest()[:8]
 
+
+def build_save_best_fn(save_dir, actor, critic, eval_cfg, wandb_run=None):
     os.makedirs(save_dir, exist_ok=True)
-    policy_best = os.path.join(save_dir, "policy_best.ckpt")
-    critic_best = os.path.join(save_dir, "critic_best.pth")
+    
+    # 创建带时间戳的文件名
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    policy_best = os.path.join(save_dir, f"policy_best_{timestamp}.ckpt")
+    critic_best = os.path.join(save_dir, f"critic_best_{timestamp}.pth")
+    config_file = os.path.join(save_dir, f"config_{timestamp}.json")
+    
     def _lightning_policy_ckpt(policy_model: torch.nn.Module):
-
         sd = policy_model.state_dict()
         sd_prefixed = {f"nets.policy.{k}": v.detach().cpu() for k, v in sd.items()}
         
-        # 创建完整的 Lightning checkpoint 格式
+        # 增加训练信息到checkpoint
         ckpt = {
             "state_dict": sd_prefixed,
             "pytorch-lightning_version": pl.__version__,
@@ -80,26 +101,59 @@ def build_save_best_fn(save_dir, actor, critic, wandb_run=None):
             "optimizer_states": [],
             "datamodule_hyper_parameters": {},
             "hyper_parameters": {},
+            "training_timestamp": timestamp,
+            "config_summary": {
+                "learning_rate": eval_cfg.ppo['learning_rate'],
+                "gamma": eval_cfg.ppo['gamma'],
+                "clip_ratio": eval_cfg.ppo['clip_ratio'],
+                "seed": eval_cfg.seed
+            }
         }
         return ckpt
 
-    def save_best_fn(ts_policy):  # Tianshou 会把 policy 传进来，但我们直接用外层闭包里的 actor/critic
-        # 1) 保存策略为 Lightning 兼容的 .ckpt
-        policy_model = actor.backbone.ppo  # 就是 PPO_Diffuser
+    def save_best_fn(ts_policy):
+        # 1) 保存策略
+        policy_model = actor.backbone.ppo
         ckpt = _lightning_policy_ckpt(policy_model)
         torch.save(ckpt, policy_best)
         print(f"[PPO] saved policy ckpt -> {policy_best}")
 
-        # 2) critic 单存 .pth（训练时会再 load）
-        torch.save({"critic": critic.state_dict()}, critic_best)
+        # 2) 保存critic
+        torch.save({"critic": critic.state_dict(), "timestamp": timestamp}, critic_best)
         print(f"[PPO] saved critic pth  -> {critic_best}")
 
-        # 3) 可选：打到 wandb artifact
+        # 3) 保存完整配置
+        config_dict = {
+            "timestamp": timestamp,
+            "ppo_config": eval_cfg.ppo,
+            "seed": eval_cfg.seed,
+            "dataset_path": eval_cfg.dataset_path,
+            "eval_class": eval_cfg.eval_class,
+            "wandb_run_name": eval_cfg.ppo.get('wandb_run_name', 'unknown')
+        }
+        with open(config_file, 'w') as f:
+            json.dump(config_dict, f, indent=2)
+        print(f"[PPO] saved config -> {config_file}")
+
+        # 4) 创建symbolic link指向最新的best模型
+        latest_policy = os.path.join(save_dir, "policy_latest.ckpt")
+        latest_critic = os.path.join(save_dir, "critic_latest.pth")
+        
+        if os.path.exists(latest_policy):
+            os.remove(latest_policy)
+        if os.path.exists(latest_critic):
+            os.remove(latest_critic)
+            
+        os.symlink(os.path.basename(policy_best), latest_policy)
+        os.symlink(os.path.basename(critic_best), latest_critic)
+
+        # 5) wandb artifact
         if wandb_run is not None:
             import wandb
-            art = wandb.Artifact("ppo_rl", type="model")
+            art = wandb.Artifact(f"ppo_rl_{timestamp}", type="model")
             art.add_file(policy_best)
             art.add_file(critic_best)
+            art.add_file(config_file)
             wandb_run.log_artifact(art)
 
     return save_best_fn
@@ -201,10 +255,16 @@ def ppo_training(eval_cfg):
     writer.add_text("config", str(exp_config))
     logger.load(writer)
 
+    # 创建带时间戳的保存目录
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_name = eval_cfg.ppo.get('wandb_run_name', 'PPO_Run')
+    run_id = f"{run_name}_{timestamp}"
 
-    save_dir = os.path.join(eval_cfg.results_dir, "ppo_rl")
+    # 构建层次化目录结构
+    save_dir = os.path.join(eval_cfg.results_dir, "ppo_runs", run_id)
+
     wandb_run = logger.wandb_run if logger is not None else None
-    save_best_fn = build_save_best_fn(save_dir, actor, critic, wandb_run)
+    save_best_fn = build_save_best_fn(save_dir, actor, critic, eval_cfg, wandb_run)
     #--------------------- 3 * 1 * 50 --------------------------------------------
     result = onpolicy_trainer(
         policy=policy,
