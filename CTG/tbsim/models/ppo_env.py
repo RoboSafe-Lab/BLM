@@ -11,30 +11,42 @@ from torch.utils.data import DataLoader
 import os
 def preprocess_fn(
     obs=None, obs_next=None, rew=None, done=None, info=None,
-    policy=None, env_id=None, act=None
+    policy=None, env_id=None, act=None,
 ):
+    def _to_numpy(x):
+        if isinstance(x, torch.Tensor):
+            return x.detach().cpu().numpy()
+        return np.asarray(x)
 
-    def to_numpy_and_squeeze(x):
-        if hasattr(x, 'cpu') and hasattr(x, 'numpy'):
-            arr = x.detach().cpu().numpy()
-        else:
-            arr = np.asarray(x)
-        if isinstance(arr, np.ndarray) and arr.ndim > 1 and arr.shape[0] == 1:
-            arr = arr.squeeze(0)
-        return arr
-    result = {}
+    def _stack_list_of_dict(list_of_dict):
+        """list[dict] -> dict[np.array], 再包成 Batch"""
+        if list_of_dict is None:
+            return None
 
-    for name, item in zip(['obs', 'obs_next'], [obs, obs_next]):
-        if item is not None:
-            item_list = item.tolist() if isinstance(item, np.ndarray) else item
-            keys = item_list[0].keys()
-            batch_dict = {
-                k: np.stack([to_numpy_and_squeeze(o[k]) for o in item_list], axis=0)
-                for k in keys
-            }
-            result[name] = Batch(batch_dict)
+        if isinstance(list_of_dict, np.ndarray):
+            list_of_dict = list(list_of_dict)
 
-    return result if result else None
+        keys = list(list_of_dict[0].keys())
+        out = {}
+        for k in keys:
+            vals = [_to_numpy(d[k]) for d in list_of_dict]
+
+            if k in ("current_step", "next_step"):
+                # 每个 env 是 shape=(1,) 的 int64，拼成 (env_num,)
+                vals = [v.astype(np.int64).reshape(-1) for v in vals]
+                out[k] = np.concatenate(vals, axis=0)  # [env_num]
+            else:
+                # 正常堆叠到第一维
+                out[k] = np.stack(vals, axis=0)
+        return Batch(out)
+
+    ret = {}
+    if obs is not None:
+        ret["obs"] = _stack_list_of_dict(obs)
+    if obs_next is not None:
+        ret["obs_next"] = _stack_list_of_dict(obs_next)
+
+    return ret or None
 
 def _to_device_batch(batch: dict, device):
     out = {}
@@ -95,8 +107,18 @@ class PPOEnv(gym.Env):
         self.w_road = cfg.w_road
         self.w_proximity = cfg.w_proximity
         
-        # 用于定期内存清理的计数器
-        self._reset_count = 0
+    
+
+    def _clear_episode_tensors(self):
+            # 释放上个 episode 的大对象引用（不要在 step() 里做）
+            for name in (
+                "_cond_feat", "_map_grid_feat", "_curr_state",
+                "_raster_from_center", "_drivable_map",
+                "_neigh_fut_positions", "_neigh_fut_availabilities",
+                "x_t",
+            ):
+                if hasattr(self, name):
+                    setattr(self, name, None)
 
     @staticmethod
     def _to_np(x):
@@ -117,22 +139,9 @@ class PPOEnv(gym.Env):
 
     def reset(self, seed=42, options=None):
         # —— 0) 定期内存清理 ——
-        self._reset_count += 1
+   
         
-        # 每100次reset进行一次深度清理
-        if self._reset_count % 100 == 0:
-            print(f"深度内存清理 (reset #{self._reset_count})")
-            if hasattr(self, '_cond_feat'):
-                del self._cond_feat
-            if hasattr(self, '_map_grid_feat'):
-                del self._map_grid_feat
-            if hasattr(self, 'x_t'):
-                del self.x_t
-            torch.cuda.empty_cache()
-            gc.collect()
-        # 每次reset进行轻度清理
-        elif self._reset_count % 10 == 0:
-            torch.cuda.empty_cache()
+        self._clear_episode_tensors()
         
         # —— 1) 拿下一批数据，并搬到 GPU —— 
         batch = next(self.iterator)
