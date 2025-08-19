@@ -1,4 +1,5 @@
 from itertools import cycle
+import gc
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
@@ -60,7 +61,7 @@ class PPOEnv(gym.Env):
             dataset,
             batch_size=1,
             shuffle=True,
-            num_workers=os.cpu_count(),             # ← 0
+            num_workers=0,             # 修复内存分配问题
             persistent_workers=False,  # ← False
             pin_memory=False,
             collate_fn=dataset.get_collate_fn(return_dict=True),
@@ -93,6 +94,9 @@ class PPOEnv(gym.Env):
 
         self.w_road = cfg.w_road
         self.w_proximity = cfg.w_proximity
+        
+        # 用于定期内存清理的计数器
+        self._reset_count = 0
 
     @staticmethod
     def _to_np(x):
@@ -112,6 +116,24 @@ class PPOEnv(gym.Env):
         }
 
     def reset(self, seed=42, options=None):
+        # —— 0) 定期内存清理 ——
+        self._reset_count += 1
+        
+        # 每100次reset进行一次深度清理
+        if self._reset_count % 100 == 0:
+            print(f"深度内存清理 (reset #{self._reset_count})")
+            if hasattr(self, '_cond_feat'):
+                del self._cond_feat
+            if hasattr(self, '_map_grid_feat'):
+                del self._map_grid_feat
+            if hasattr(self, 'x_t'):
+                del self.x_t
+            torch.cuda.empty_cache()
+            gc.collect()
+        # 每次reset进行轻度清理
+        elif self._reset_count % 10 == 0:
+            torch.cuda.empty_cache()
+        
         # —— 1) 拿下一批数据，并搬到 GPU —— 
         batch = next(self.iterator)
             
@@ -180,6 +202,10 @@ class PPOEnv(gym.Env):
                 self.w_proximity
             )
             reward = float(reward)
+            
+            # 清理episode结束时的内存
+            torch.cuda.empty_cache()
+            gc.collect()
         else:
             reward = 0.0
 

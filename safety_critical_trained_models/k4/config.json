@@ -35,7 +35,7 @@
             "num_steps_per_epoch": 50
         },
         "datamodule_class": "CLDDataModule",
-        "trajdata_cache_location": "~/cld_cache",
+        "trajdata_cache_location": "~/cld_cache_1",
         "trajdata_source_train": ["nusc_trainval-train","nusc_trainval-train_val"],
         "trajdata_source_valid": ["nusc_trainval-val"],
         "trajdata_data_dirs": {
@@ -43,7 +43,7 @@
             "nusc_test": "../nuscenes",
             "nusc_mini": "../nuscenes"
         },
-        "trajdata_rebuild_cache": false,
+        "trajdata_rebuild_cache": true,
         "training_vec_map_params": {
             "S_seg": 15,
             "S_point": 80,
@@ -52,8 +52,8 @@
             "ahead_threshold": -40,
             "dist_weight": 1.0,
             "heading_weight": 0.1
-        },
-        "rebuild_cache": "false"
+        }
+
     },
     "env": {
         "name": "trajdata",

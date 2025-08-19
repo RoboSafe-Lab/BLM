@@ -63,30 +63,23 @@
         "guide_clean": false
     },
     "ppo":{
-        "learning_rate": 0.0002,
-        "gamma": 0.98,
+        "learning_rate": 0.0001,
+        "gamma": 0.99,
         "gae_lambda": 0.95,
         "max_grad_norm": 0.5,
         "clip_ratio": 0.2,
         "vf_coef": 0.5,
-        "ent_coef": 0.005,
+        "ent_coef": 0.0005,
         "wandb_project": "PPO_Diffuser",
         "wandb_entity": "yx3006-heriot-watt-university",
-        "wandb_run_name": "K4_PPO",
+        "wandb_run_name": "K4_new_reward_ddim20_yx3006",
         "wandb_id": null,
         
-        "episodes_per_collect": 50,
+        "episodes_per_collect": 100,
         "ppo_epochs": 100,
-        "update_per_collect": 20,
-        "mini_batch_size": 64,
+        "update_per_collect": 10,
+        "mini_batch_size": 128,
         "test_episodes": 30
-
-   
-
- 
-
-        
-        
 
     },
    
