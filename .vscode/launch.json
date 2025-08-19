@@ -1,0 +1,67 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "name": "ctg test",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/CTG/scripts/train.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--dataset_path",
+                " ../nuscenes",
+                "--debug",
+                "--config_name",
+                "trajdata_nusc_diff"
+            ]
+        },
+        {
+            "name": "diffusion_training",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/CTG/scripts/cld_training.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--debug",
+                "--config_file",
+                "cld_config.json",
+                "--source_train",
+                "nusc_mini-mini_train",
+                "--source_valid",
+                "nusc_mini-mini_val",
+                "--rebuild_cache",
+                "false",
+                // "--remove_exp_dir",
+            ]
+        },
+        {
+            "name": "rollout",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/CTG/scripts/cld_scene_rollout.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--config_file",
+                "simulation_config.json",
+                "--env",
+                "trajdata",
+                "--render"
+            ]
+        },
+        {
+            "name": "ppo",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/CTG/scripts/ppo.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--config_file",
+                "simulation_config.json",
+                "--debug"
+          
+            ]
+        }
+    ]
+}
