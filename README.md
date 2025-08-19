@@ -2,7 +2,12 @@
 
 
 ## Installation
+#### 步骤 0:傻瓜安装 
 
+```bash
+chmod +x quick_install.sh
+./quick_install.sh
+```
 
 #### 步骤 1:下载项目 
 
