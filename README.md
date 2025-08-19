@@ -52,8 +52,8 @@ pip install numpy==1.21.5
 #### 步骤 6: 安装tianshou
 如果遇到问题，可能需要运行以下命令:
 ```bash
+pip install tianshou  
 pip install numba==0.56.4  # 支持 numpy 1.21.x
-pip install tianshou --no-deps  # 不更新依赖
 ```
 
 

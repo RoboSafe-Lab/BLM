@@ -6,6 +6,7 @@ from tianshou.data import Batch
 from tbsim.utils.safety_critical_batch_utils import parse_batch
 import torch
 from tbsim.utils.geometry_utils import transform_points_tensor
+from torch.utils.data import DataLoader
 def preprocess_fn(
     obs=None, obs_next=None, rew=None, done=None, info=None,
     policy=None, env_id=None, act=None
@@ -51,12 +52,18 @@ def _to_device_batch(batch: dict, device):
     return out
 
 class PPOEnv(gym.Env):
-    def __init__(self,cfg,data_module,dataloader, model):             
+    def __init__(self,cfg,dataset, model):             
         super().__init__()
-        # —— 1) 数据源 —— 
-        self.data_module = data_module
-      
-        self.data_loader = dataloader
+             
+        self.data_loader =  DataLoader(
+            dataset,
+            batch_size=1,
+            shuffle=True,
+            num_workers=0,             # ← 0
+            persistent_workers=False,  # ← False
+            pin_memory=False,
+            collate_fn=dataset.get_collate_fn(return_dict=True),
+        )
         self.iterator = cycle(self.data_loader)
 
         self.model = model

@@ -140,6 +140,11 @@ def ppo_training(eval_cfg):
     exp_config.train.training.batch_size = 1
     exp_config.train.validation.batch_size = 1
 
+    if eval_cfg.debug:
+        exp_config.train.trajdata_source_train = ["nusc_mini-mini_train"]
+        exp_config.train.trajdata_source_valid = ["nusc_mini-mini_val"]
+
+
     datamodule = datamodule_factory(
         cls_name=exp_config.train.datamodule_class, config=exp_config
     )
@@ -172,31 +177,30 @@ def ppo_training(eval_cfg):
     transitions_per_episode  = eval_cfg.ppo["episodes_per_collect"]  *  exp_config.algo.ddim_steps #40*50=2000
 
     train_collector = Collector(policy,
-                                PPOEnv(exp_config.algo, datamodule, datamodule.train_dataloader(), policy_model), 
+                                PPOEnv(exp_config.algo, datamodule.train_dataset, policy_model), 
                                 buffer= ReplayBuffer(size=transitions_per_episode),
                                 preprocess_fn=preprocess_fn)
     test_collector = Collector(policy,
-                                PPOEnv(exp_config.algo, datamodule, datamodule.val_dataloader(), policy_model),
+                                PPOEnv(exp_config.algo, datamodule.valid_dataset, policy_model),
                                 preprocess_fn=preprocess_fn)
 
-    if not eval_cfg.debug:
-        wandb.login()
-        logger = WandbLogger(
-            train_interval=1,
-            update_interval=1,
-            test_interval=1,
-            project=eval_cfg.ppo['wandb_project'],
-            entity=eval_cfg.ppo['wandb_entity'],
-            name=eval_cfg.ppo['wandb_run_name'],
-            save_interval=1,
-            run_id=eval_cfg.ppo['wandb_id'],
-            )
+  
+    wandb.login()
+    logger = WandbLogger(
+        train_interval=1,
+        update_interval=1,
+        test_interval=1,
+        project=eval_cfg.ppo['wandb_project'],
+        entity=eval_cfg.ppo['wandb_entity'],
+        name=eval_cfg.ppo['wandb_run_name'],
+        save_interval=1,
+        run_id=eval_cfg.ppo['wandb_id'],
+        )
 
-        writer = SummaryWriter(exp_config.training.output_dir)
-        writer.add_text("config", str(exp_config))
-        logger.load(writer)
-    else:
-        logger = None
+    writer = SummaryWriter(eval_cfg.results_dir)
+    writer.add_text("config", str(exp_config))
+    logger.load(writer)
+
 
     save_dir = os.path.join(eval_cfg.results_dir, "ppo_rl")
     wandb_run = logger.wandb_run if logger is not None else None
