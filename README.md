@@ -61,6 +61,12 @@ pip install tianshou
 pip install numba==0.56.4  # 支持 numpy 1.21.x
 ```
 
+#### 传输文件到dmog
+如果遇到问题，可能需要运行以下命令:
+```bash
+scp -r /Users/visier/cld_cache yx3006@dmog.hw.ac.uk:/users/yx3006/
+key: qwe123456
+```
 
 
 
