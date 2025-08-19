@@ -220,41 +220,30 @@ class PPOEnv(gym.Env):
 
         return self._obs(terminated=terminated), reward, bool(terminated), bool(truncated), {}
     
-def compute_road_reward(pred_positions, drivable_map, raster_from_center,               
-                        K=10,w_inside=+1.0, w_oob=-1.0 ):               # 出界惩罚
+def compute_road_reward(pred_positions, drivable_map, raster_from_center):               # 出界惩罚
 
     """只看末 K 帧内在道内的比例：全在道内≈+1,末段越界≈-1"""
     T = pred_positions.shape[0]
-    K = min(T,K)
-    tail = pred_positions[-K:]
+   
 
-    ego_px = transform_points_tensor(tail, raster_from_center)  # (T,2)
+    ego_px = transform_points_tensor(pred_positions, raster_from_center)  # (T,2)
     H, W = drivable_map.shape[-2:]
-
-    oob = (ego_px[:, 0] < 0) | (ego_px[:, 0] >= W) | (ego_px[:, 1] < 0) | (ego_px[:, 1] >= H)
 
     ix = ego_px[..., 0].clamp(0, W-1).long()        # (T)
     iy = ego_px[..., 1].clamp(0, H-1).long()        # (T)
     flags = drivable_map[iy, ix].float()  
-    flags[oob] = 0.0
-                                          # (K)
-    frac_inside = flags.mean()               # [0,1]
-    frac_oob    = oob.float().mean()         # [0,1]
+   
+    # 将float转换为bool，然后使用逻辑取反
+    off = (~flags.bool()).nonzero(as_tuple=False)
+    t = (off[0, 0].item() if off.numel() > 0 else T - 1)
 
-    # 部分得分：[-1,1]
-    r_inside = 2.0 * frac_inside - 1.0       # 全在道内=+1，末段全OOB=-1
-    r_oob    = - frac_oob                    # 末段 OOB 越多越负（范围 [-1,0]）
-
-    r = w_inside * r_inside + w_oob * r_oob
-    return r.clamp(-1.0, 1.0)
-
-
+    r = 2.0 * (t /(T-1)) - 1.0
+    return torch.tensor(r, device=pred_positions.device)
 
 def proximity_reward_monotone(
         pred_positions, neigh_fut_positions, neigh_fut_availabilities,
-        d_col: float = 0.3,                         # 碰撞阈
-        d_near: float = 1.0,                        # 近距上界：小于它越小越好
-        hard_penalty: float = -1.0):
+        d_col: float = 2.0,                         # 碰撞阈
+        decay: float = 0.9):
 
     T = min(pred_positions.shape[0], neigh_fut_positions.shape[1])
     p = pred_positions[:T]                           # [T,2]
@@ -263,12 +252,17 @@ def proximity_reward_monotone(
 
     dists = torch.norm(p.unsqueeze(0) - n, dim=-1)  # [N,T]
     dists = torch.where(m, dists, torch.full_like(dists, float("inf")))
-    dist_min = dists.min(dim=0).values 
-    if (dist_min < d_col).any():
-        return torch.tensor(hard_penalty, device=dist_min.device)
-    r_t = (d_near - dist_min).clamp(min=0) / (d_near - d_col) 
-    r_soft = r_t.max()
-    return (2.0 * r_soft - 1.0).clamp(-1.0, 1.0)
+    dist_min_t = dists.min(dim=0).values 
+    if torch.isinf(dist_min_t).all():
+        return torch.tensor(0.0, device=pred_positions.device)
+
+    d_star, t_star = torch.min(dist_min_t, dim=0)
+    if d_star < d_col:
+        return torch.tensor(-1.0, device=pred_positions.device)
+
+    r = (decay ** float(t_star.item())) * (2.0 / float(d_star.item()))
+    return torch.tensor(r, device=pred_positions.device)
+
 
  
 

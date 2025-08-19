@@ -266,7 +266,7 @@
         "disable_control_on_stationary": "any_speed",
         "moving_speed_th": 2,
         "w_road": 1.0,
-        "w_proximity": 1.0,
+        "w_proximity": 20.0,
         "ddim_steps": 20
       
     },
