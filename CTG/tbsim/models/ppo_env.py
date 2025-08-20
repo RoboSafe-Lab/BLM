@@ -237,7 +237,7 @@ def compute_road_reward(pred_positions, drivable_map, raster_from_center):      
     off = (~flags.bool()).nonzero(as_tuple=False)
     t = (off[0, 0].item() if off.numel() > 0 else T - 1)
 
-    r = 2.0 * (t /(T-1)) - 1.0
+    r = t /(T-1)
     return torch.tensor(r, device=pred_positions.device)
 
 def proximity_reward_monotone(
@@ -260,7 +260,8 @@ def proximity_reward_monotone(
     if d_star < d_col:
         return torch.tensor(-1.0, device=pred_positions.device)
 
-    r = (decay ** float(t_star.item())) * (2.0 / float(d_star.item()))
+    # r = (decay ** float(t_star.item())) * (d_col/ float(d_star.item()))
+    r =  float(t_star.item()/(T-1)) * (d_col/ float(d_star.item()))
     return torch.tensor(r, device=pred_positions.device)
 
 

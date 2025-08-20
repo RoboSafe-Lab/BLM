@@ -1,6 +1,6 @@
 {
     "results_dir": "safety_critical_trained_models/k4",
-    "name": "",
+    "name": "dm_dm_20",
     "dataset_path": "../nuscenes",
     "eval_class": "PPO_Diffuser",
     "seed": 42,
@@ -16,12 +16,12 @@
             "nusc_test": "../nuscenes",
             "nusc_mini": "../nuscenes"
         },
-        "trajdata_source_test": ["nusc_trainval-train","nusc_trainval-train_val"],
+        "trajdata_source_test": ["nusc_trainval-val"],
         "trajdata_rebuild_cache": false,
         "num_sim_per_scene": 1,
         "future_sec": 5.2,
         "history_sec": 3.0,
-        "num_scenes_to_evaluate": 5,
+        "eval_scenes": [20,30,40],
         "num_simulation_steps": 100,
         "n_step_action": 5
         
@@ -33,8 +33,8 @@
             "ckpt_key": "K4.ckpt"
         },
         "planner": {
-            "ckpt_dir": null,
-            "ckpt_key": null
+            "ckpt_dir": "safety_critical_trained_models/k4",
+            "ckpt_key": "K4.ckpt"
         },
         "predictor": {
             "ckpt_dir": null,

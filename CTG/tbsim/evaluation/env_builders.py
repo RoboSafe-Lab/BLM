@@ -339,7 +339,7 @@ class EnvCLDBuilder(EnvironmentBuilder):
             history_sec=(history_sec, history_sec),
             incl_robot_future=   data_cfg.incl_robot_future,
             ego_only         =not data_cfg.incl_robot_future,
-
+            max_neighbor_num = 10,
             agent_interaction_distances=defaultdict(lambda: neighbor_distance),
             incl_raster_map=data_cfg.trajdata_incl_map,
             raster_map_params={

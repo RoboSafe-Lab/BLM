@@ -67,7 +67,7 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
     ego_policy, exp_config = ego_composer.get_policy()
 
     agents_composer = composer_class(eval_cfg, device)
-    agents_policy, _ = agents_composer.get_policy()
+    agents_planner, _ = agents_composer.get_planner()
     
     # determines cfg for rasterizing agents
     set_global_trajdata_batch_raster_cfg(exp_config.env.rasterizer)
@@ -105,7 +105,8 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
     result_stats = None
     scene_i = 0
     eval_scenes = eval_cfg.eval_scenes
-    while scene_i < eval_cfg.num_scenes_to_evaluate: #(0 到100)
+    # while scene_i < eval_cfg.num_scenes_to_evaluate: #(0 到100)
+    while scene_i < len(eval_scenes):
         scene_indices = eval_scenes[scene_i: scene_i + eval_cfg.num_scenes_per_batch]
         scene_i += eval_cfg.num_scenes_per_batch
         print('scene_indices', scene_indices)
@@ -153,15 +154,15 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
                 dt=exp_config.algo.step_time,
                 yaw_correction_speed=eval_cfg.policy.yaw_correction_speed
             )
-            agents_policy = Pos2YawWrapper(
-                agents_policy,
+            agents_planner = Pos2YawWrapper(
+                agents_planner,
                 dt=exp_config.algo.step_time,
                 yaw_correction_speed=eval_cfg.policy.yaw_correction_speed
             )
         
         # right now assume control of full scene
         rollout_policy = RolloutWrapper(ego_policy=ego_policy, 
-                                        agents_policy=agents_policy,
+                                        agents_policy=agents_planner,
                                         pass_agent_obs=False)
 
 

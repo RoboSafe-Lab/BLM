@@ -36,14 +36,14 @@
         },
         "datamodule_class": "CLDDataModule",
         "trajdata_cache_location": "~/cld_cache",
-        "trajdata_source_train": ["nusc_trainval-train","nusc_trainval-train_val"],
+        "trajdata_source_train": ["nusc_trainval-val"],
         "trajdata_source_valid": ["nusc_trainval-val"],
         "trajdata_data_dirs": {
             "nusc_trainval": "../nuscenes",
             "nusc_test": "../nuscenes",
             "nusc_mini": "../nuscenes"
         },
-        "trajdata_rebuild_cache": true,
+        "trajdata_rebuild_cache": false,
         "training_vec_map_params": {
             "S_seg": 15,
             "S_point": 80,
@@ -52,7 +52,8 @@
             "ahead_threshold": -40,
             "dist_weight": 1.0,
             "heading_weight": 0.1
-        }
+        },
+        "rebuild_cache": false
 
     },
     "env": {
@@ -69,7 +70,7 @@
             "trajdata_incl_map": true,
             "trajdata_max_agents_distance": 50,
             "trajdata_standardize_data": true,
-            "other_agents_num": null,
+            "other_agents_num": 10,
             "incl_robot_future": true
         },
         "rasterizer": {
@@ -266,7 +267,7 @@
         "disable_control_on_stationary": "any_speed",
         "moving_speed_th": 2,
         "w_road": 1.0,
-        "w_proximity": 20.0,
+        "w_proximity": 1.0,
         "ddim_steps": 20
       
     },
