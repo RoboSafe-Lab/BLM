@@ -3,7 +3,7 @@ wandb/
 
 # Training outputs
 diffuser_trained_models/
-safety_critical_trained_models/viz/
+safety_critical_trained_models/
 **/logs/log.txt
 
 # TensorBoard events
