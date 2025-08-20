@@ -1,0 +1,25 @@
+{
+  "timestamp": "20250820_184007",
+  "ppo_config": {
+    "learning_rate": 0.0001,
+    "gamma": 0.99,
+    "gae_lambda": 0.95,
+    "max_grad_norm": 0.5,
+    "clip_ratio": 0.2,
+    "vf_coef": 0.5,
+    "ent_coef": 0.0005,
+    "wandb_project": "PPO_Diffuser",
+    "wandb_entity": "yx3006-heriot-watt-university",
+    "wandb_run_name": "ddim50_cw",
+    "wandb_id": null,
+    "episodes_per_collect": 100,
+    "ppo_epochs": 100,
+    "update_per_collect": 10,
+    "mini_batch_size": 128,
+    "test_episodes": 30
+  },
+  "seed": 42,
+  "dataset_path": "../nuscenes",
+  "eval_class": "PPO_Diffuser",
+  "wandb_run_name": "ddim50_cw"
+}
