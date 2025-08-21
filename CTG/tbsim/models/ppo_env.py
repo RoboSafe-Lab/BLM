@@ -252,13 +252,15 @@ def proximity_reward_monotone(
     dists = torch.norm(p.unsqueeze(0) - n, dim=-1)  # [N,T]
     dists = torch.where(m, dists, torch.full_like(dists, float("inf")))
     dist_min_t = dists.min(dim=0).values 
+    
     if torch.isinf(dist_min_t).all():
         return torch.tensor(0.0, device=pred_positions.device)
 
     d_star, t_star = torch.min(dist_min_t, dim=0)
     if d_star < d_col:
         return torch.tensor(-1.0, device=pred_positions.device)
-    r =  float(t_star.item()/(T-1)) * (d_col/ float(d_star.item()))
+    eps = 1e-6
+    r = (t_star.float()/(T-1)) * (d_col / (d_star + eps))
     return r
 
 
@@ -278,4 +280,4 @@ def compute_reward(pred_positions,
                                     neigh_fut_availabilities)
     # 3) 加权合成
     reward = w_road * road_r  + w_proximity * prox_r
-    return reward.detach().cpu().numpy()
+    return reward

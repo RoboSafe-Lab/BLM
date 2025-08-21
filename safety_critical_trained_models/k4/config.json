@@ -268,7 +268,7 @@
         "moving_speed_th": 2,
         "w_road": 1.0,
         "w_proximity": 1.0,
-        "ddim_steps": 20
+        "ddim_steps": 50
       
     },
     "name": "dmog-v2-K4",

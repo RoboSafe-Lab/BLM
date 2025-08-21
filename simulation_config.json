@@ -1,6 +1,6 @@
 {
     "results_dir": "safety_critical_trained_models/k4",
-    "name": "dm_dm_20",
+    "name": "",
     "dataset_path": "../nuscenes",
     "eval_class": "PPO_Diffuser",
     "seed": 42,
