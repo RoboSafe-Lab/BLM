@@ -220,25 +220,24 @@ class PPOEnv(gym.Env):
 
         return self._obs(terminated=terminated), reward, bool(terminated), bool(truncated), {}
     
-def compute_road_reward(pred_positions, drivable_map, raster_from_center):               # 出界惩罚
+def compute_road_reward(pred_positions, drivable_map, raster_from_center, beta: float = 0.95):
 
-    """只看末 K 帧内在道内的比例：全在道内≈+1,末段越界≈-1"""
     T = pred_positions.shape[0]
-   
-
     ego_px = transform_points_tensor(pred_positions, raster_from_center)  # (T,2)
     H, W = drivable_map.shape[-2:]
+    ix = ego_px[..., 0].clamp(0, W-1).long()
+    iy = ego_px[..., 1].clamp(0, H-1).long()
+    flags = (drivable_map[iy, ix] > 0.5).float()  # 1在道内/0道外, [T]
 
-    ix = ego_px[..., 0].clamp(0, W-1).long()        # (T)
-    iy = ego_px[..., 1].clamp(0, H-1).long()        # (T)
-    flags = drivable_map[iy, ix].float()  
-   
-    # 将float转换为bool，然后使用逻辑取反
-    off = (~flags.bool()).nonzero(as_tuple=False)
-    t = (off[0, 0].item() if off.numel() > 0 else T - 1)
+    # 权重：前面帧更大
+    idx = torch.arange(T, device=flags.device, dtype=torch.float32)
+    w = beta ** idx
+    w = w / (w.sum() + 1e-8)
 
-    r = t /(T-1)
-    return torch.tensor(r, device=pred_positions.device)
+    r01 = (flags * w).sum()       # [0,1]
+    r = 2.0 * r01 - 1.0           # 映射到 [-1,1]
+    r = torch.clamp(torch.nan_to_num(r, nan=0.0), -1.0, 1.0)
+    return r
 
 def proximity_reward_monotone(
         pred_positions, neigh_fut_positions, neigh_fut_availabilities,
@@ -261,8 +260,12 @@ def proximity_reward_monotone(
     if d_star < d_col:
         return torch.tensor(-3.0, device=pred_positions.device)
 
-    r = (decay ** float(t_star.item())) * (d_col / float(d_star.item()))
-    return torch.tensor(r, device=pred_positions.device)
+    eps = 1e-6
+    score01 = (decay ** t_star.float()) * (d_col / (d_star + eps))  
+    score01 = torch.clamp(score01, 0.0, 1.0)
+
+    r = 2.0 * score01 - 1.0 
+    return r
 
 
  
