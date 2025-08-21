@@ -1,0 +1,280 @@
+{
+    "registered_name": "safety_critical",
+    "train": {
+        "logging": {
+            "terminal_output_to_txt": true,
+            "log_tb": false,
+            "log_wandb": true,
+            "wandb_project_name": "SC_GMM_Diffuser",
+            "log_every_n_steps": 10,
+            "flush_every_n_steps": 100
+        },
+        "save": {
+            "enabled": true,
+            "every_n_steps": 5000,
+            "best_k": 1,
+            "save_best_rollout": false,
+            "save_best_validation": true
+        },
+        "rollout": {
+            "save_video": true,
+            "enabled": false,
+            "every_n_steps": 10000,
+            "warm_start_n_steps": 0
+        },
+        "training": {
+            "batch_size": 1,
+            "num_steps": 150000,
+            "num_data_workers": 0
+        },
+        "validation": {
+            "enabled": true,
+            "batch_size": 1,
+            "num_data_workers": 0,
+            "every_n_steps": 1000,
+            "num_steps_per_epoch": 50
+        },
+        "datamodule_class": "CLDDataModule",
+        "trajdata_cache_location": "~/cld_cache",
+        "trajdata_source_train": ["nusc_trainval-val"],
+        "trajdata_source_valid": ["nusc_trainval-val"],
+        "trajdata_data_dirs": {
+            "nusc_trainval": "../nuscenes",
+            "nusc_test": "../nuscenes",
+            "nusc_mini": "../nuscenes"
+        },
+        "trajdata_rebuild_cache": false,
+        "training_vec_map_params": {
+            "S_seg": 15,
+            "S_point": 80,
+            "map_max_dist": 80,
+            "max_heading_error": 0.7853981633974483,
+            "ahead_threshold": -40,
+            "dist_weight": 1.0,
+            "heading_weight": 0.1
+        },
+        "rebuild_cache": false
+
+    },
+    "env": {
+        "name": "trajdata",
+        "data_generation_params": {
+            "trajdata_centric": "agent",
+            "trajdata_only_types": [
+                "vehicle"
+            ],
+            "trajdata_predict_types": [
+                "vehicle"
+            ],
+            "trajdata_scene_desc_contains": null,
+            "trajdata_incl_map": true,
+            "trajdata_max_agents_distance": 50,
+            "trajdata_standardize_data": true,
+            "other_agents_num": 10,
+            "incl_robot_future": true
+        },
+        "rasterizer": {
+            "include_hist": true,
+            "num_sem_layers": 3,
+            "drivable_layers": null,
+            "rgb_idx_groups": [
+                [
+                    0
+                ],
+                [
+                    1
+                ],
+                [
+                    2
+                ]
+            ],
+            "raster_size": 224,
+            "pixel_size": 1.0,
+            "ego_center": [
+                -0.5,
+                0.0
+            ],
+            "no_map_fill_value": -1.0
+        }
+    },
+    "algo": {
+        "name": "diffuser_ppo",
+        "eval_class": "diffuser_ppo",
+        "scene_agent_max_neighbor_dist": 30,
+        "map_encoder_model_arch": "resnet18",
+        "map_feature_dim": 128,
+        "map_grid_feature_dim": 32,
+        "history_num_frames": 30,
+        "history_feature_dim": 64,
+        "state_in_dim": 4,
+        "state_out_feat_dim": 64,
+        "cond_feat_dim": 128,
+        "time_emb_dim": 32,
+        "attn_hidden_dim": 64,
+        "attn_dilations": [
+            1,
+            2,
+            4
+        ],
+        "attn_n_heads": 4,
+        "grid_map_traj_dim": 32,
+        "mix_gauss": 5,
+        "horizon": 50,
+        "n_diffusion_steps": 100,
+        "future_num_frames": 52,
+        "step_time": 0.1,
+        "dynamics": {
+            "type": "Unicycle",
+            "max_steer": 0.5,
+            "max_yawvel": 6.283185307179586,
+            "acce_bound": [
+                -10,
+                8
+            ],
+            "ddh_bound": [
+                -6.283185307179586,
+                6.283185307179586
+            ],
+            "max_speed": 40.0
+        },
+        "optim_params": {
+            "learning_rate": {
+                "initial": 0.0002,
+                "weight_decay": 0.0001
+            }
+        },
+        "norm_info": {
+            "diffuser": [
+                [
+                    2.135494,
+                    0.003704,
+                    0.970226,
+                    0.000573,
+                    -0.002965,
+                    0.000309
+                ],
+                [
+                    5.5444,
+                    0.524067,
+                    2.206522,
+                    0.049049,
+                    0.729327,
+                    0.023765
+                ]
+            ],
+            "agent_hist": [
+                [
+                    -1.198923,
+                    0.000128,
+                    0.953161,
+                    4.698113,
+                    2.051664
+                ],
+                [
+                    3.180241,
+                    0.159182,
+                    2.129779,
+                    2.116855,
+                    0.388149
+                ]
+            ],
+            "neighbor_hist": [
+                [
+                    -0.237441,
+                    1.118636,
+                    0.489575,
+                    0.868664,
+                    0.222984
+                ],
+                [
+                    7.587311,
+                    7.444489,
+                    1.680952,
+                    2.578202,
+                    0.832563
+                ]
+            ]
+        },
+        "dt": 0.1,
+        "global_feature_dim": 128,
+        "grid_feature_dim": 32,
+        "center_history_out_dim": 128,
+        "norm_info_center": [
+            [
+                -1.1693,
+                0.0069,
+                0,
+                0.0001,
+                0.0146,
+                0.0003,
+                3.6896
+            ],
+            [
+                7.5614,
+                1.0793,
+                1,
+                0.1002,
+                0.6766,
+                0.0533,
+                2.2774
+            ]
+        ],
+        "norm_info_neighbor": [
+            [
+                1.7597,
+                1.61,
+                3.9131,
+                -0.0762,
+                0.0691,
+                0.0007,
+                3.6896
+            ],
+            [
+                25.8932,
+                19.2935,
+                3.8771,
+                2.1291,
+                1.1453,
+                0.0894,
+                2.2774
+            ]
+        ],
+        "state_encoder_out_dim": 64,
+        "neighbor_history_out_dim": 64,
+        "context_encoder_hidden_dim": 64,
+        "context_encoder_out_dim": 128,
+        "diffusion_hidden_dim": 64,
+        "dilations": [
+            1,
+            2,
+            4,
+            8
+        ],
+        "num_heads": 4,
+        "num_Gaussian": 4,
+        "Dynamics": {
+            "max_steer": 0.25,
+            "max_yawvel": 2.0,
+            "acce_bound": [
+                -3,
+                3
+            ],
+            "vbound": [
+                0,
+                8
+            ]
+        },
+        "disable_control_on_stationary": "any_speed",
+        "moving_speed_th": 2,
+        "w_road": 1.0,
+        "w_proximity": 1.0,
+        "ddim_steps": 20
+      
+    },
+    "name": "dmog-v2-K4",
+    "root_dir": "safety_critical_trained_models/",
+    "seed": 42,
+    "devices": {
+        "num_gpus": 1
+    }
+}
