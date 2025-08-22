@@ -22,14 +22,14 @@
         "warm_start_n_steps": 0
       },
       "training": {
-        "batch_size": 64,
-        "num_steps": 150000,
-        "num_data_workers": 2
+        "batch_size": 128,
+        "num_steps": 300000,
+        "num_data_workers": 16
       },
       "validation": {
         "enabled": true,
-        "batch_size": 32,
-        "num_data_workers": 2,
+        "batch_size": 64,
+        "num_data_workers": 16,
         "every_n_steps": 2000,
         "num_steps_per_epoch": 50
       },
@@ -108,7 +108,7 @@
       "time_emb_dim": 32,
       "diffusion_hidden_dim":64,
       "dilations": [1,2,4,8],
-      "num_heads":4,
+      "num_heads":6,
 
       "num_Gaussian":5,
       "n_diffusion_steps": 100,
@@ -139,7 +139,7 @@
 
       },
     
-    "name": "aaaaaa",
+    "name": "K6_UnifiedDataset",
     "root_dir": "safety_critical_trained_models/",
     "seed": 42
 

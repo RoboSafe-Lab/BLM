@@ -227,15 +227,14 @@ def compute_road_reward(pred_positions, drivable_map, raster_from_center, beta: 
     H, W = drivable_map.shape[-2:]
     ix = ego_px[..., 0].clamp(0, W-1).long()
     iy = ego_px[..., 1].clamp(0, H-1).long()
-    flags = (drivable_map[iy, ix] > 0.5).float()  # 1在道内/0道外, [T]
+    flags = (drivable_map[iy, ix] > 0.5).float()  
 
-    # 权重：前面帧更大
     idx = torch.arange(T, device=flags.device, dtype=torch.float32)
     w = beta ** idx
     w = w / (w.sum() + 1e-8)
 
-    r01 = (flags * w).sum()       # [0,1]
-    r = 2.0 * r01 - 1.0           # 映射到 [-1,1]
+    r01 = (flags * w).sum()       
+    r = 2.0 * r01 - 1.0          
     r = torch.clamp(torch.nan_to_num(r, nan=0.0), -1.0, 1.0)
     return r
 

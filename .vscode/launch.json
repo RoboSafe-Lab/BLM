@@ -59,7 +59,8 @@
             "args": [
                 "--config_file",
                 "simulation_config.json",
-                "--debug"
+                "--debug",
+             
           
             ]
         }

@@ -118,10 +118,10 @@ class CLDDataModule(pl.LightningDataModule):
 
         )
         print(kwargs)
-        self.train_dataset = FilteredUnifiedDataset(**kwargs)
+        self.train_dataset = UnifiedDataset(**kwargs)
 
         kwargs["desired_data"] = data_cfg.trajdata_source_valid
-        self.valid_dataset = FilteredUnifiedDataset(**kwargs)
+        self.valid_dataset = UnifiedDataset(**kwargs)
 
         gc.collect()
 
@@ -130,7 +130,7 @@ class CLDDataModule(pl.LightningDataModule):
             dataset=self.train_dataset,
             shuffle=True,
             batch_size=self._train_config.training.batch_size,
-            num_workers= 0, #self._train_config.training.num_data_workers,
+            num_workers= os.cpu_count(), #self._train_config.training.num_data_workers,
             drop_last=True,
             collate_fn=self.train_dataset.get_collate_fn(return_dict=True),
             persistent_workers=True
@@ -141,7 +141,7 @@ class CLDDataModule(pl.LightningDataModule):
             dataset=self.valid_dataset,
             shuffle=False, # since pytorch lightning only evals a subset of val on each epoch, shuffle
             batch_size=self._train_config.validation.batch_size,
-            num_workers= 0, #self._train_config.validation.num_data_workers,
+            num_workers= os.cpu_count(), #self._train_config.validation.num_data_workers,
             drop_last=True,
             collate_fn=self.valid_dataset.get_collate_fn(return_dict=True),
             persistent_workers=True

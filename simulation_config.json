@@ -1,10 +1,10 @@
 {
     "results_dir": "safety_critical_trained_models/k4",
-    "name": "",
+    "name": "cw_v2",
     "dataset_path": "../nuscenes",
     "eval_class": "PPO_Diffuser",
     "seed": 42,
-    "num_scenes_per_batch": 1,
+    "num_scenes_per_batch": 2,
     
     "num_episode_repeats": 1,
     "start_frame_index_each_episode": null,
@@ -21,8 +21,8 @@
         "num_sim_per_scene": 1,
         "future_sec": 5.2,
         "history_sec": 3.0,
-        "eval_scenes": [20,30,40],
-        "num_simulation_steps": 100,
+        "eval_scenes": [70,71,72],
+        "num_simulation_steps": 200,
         "n_step_action": 5
         
     },
@@ -34,7 +34,7 @@
         },
         "planner": {
             "ckpt_dir": "safety_critical_trained_models/k4",
-            "ckpt_key": "K4.ckpt"
+            "ckpt_key": "cw_v2.ckpt"
         },
         "predictor": {
             "ckpt_dir": null,
