@@ -100,7 +100,7 @@ class PPO_Diffuser(nn.Module):
                                             dilations = dilations,
                                             n_heads = num_heads,
                                             grid_map_traj_dim = grid_feature_dim,
-                                            mix_gauss = num_Gaussian)
+                                            )
 
         self._dynamics_kwargs = dynamics_kwargs
         self._create_dynamics(dynamics_kwargs)        
@@ -140,9 +140,9 @@ class PPO_Diffuser(nn.Module):
         self.register_buffer('posterior_log_variance_clipped',
             torch.log(torch.clamp(posterior_variance, min=1e-20)))
         self.register_buffer('posterior_mean_coef1',
-            betas * np.sqrt(alphas_cumprod_prev) / (1. - alphas_cumprod))
+            betas * torch.sqrt(alphas_cumprod_prev) / (1. - alphas_cumprod))
         self.register_buffer('posterior_mean_coef2',
-            (1. - alphas_cumprod_prev) * np.sqrt(alphas) / (1. - alphas_cumprod))
+            (1. - alphas_cumprod_prev) * torch.sqrt(alphas) / (1. - alphas_cumprod))
 
         self.default_chosen_inds = [4, 5]
         self.input_image_shape = input_image_shape
@@ -229,9 +229,7 @@ class PPO_Diffuser(nn.Module):
                                         batch["center_hist_yaw_rates"],
                                         batch["extent"],
                                         batch["center_hist_availabilities"])
-        # center_state = self.center_state(torch.cat([batch["center_curr_positions"],
-        #                                             batch["center_curr_speeds"].unsqueeze(-1),
-        #                                             batch["center_curr_yaws"].unsqueeze(-1)],-1))
+
         
         neigh_hist = self.neighbor_hist(batch["neigh_hist_positions"],
                                         batch["neigh_hist_speeds"],
@@ -250,7 +248,7 @@ class PPO_Diffuser(nn.Module):
         center_fut_action = torch.cat([batch['center_fut_acc_lons'].unsqueeze(-1),
                                 batch['center_fut_yaw_rates'].unsqueeze(-1)],dim=-1)
         
-        scaled_action = self.scale_traj(center_fut_action).detach()
+        scaled_action = self.scale_traj(center_fut_action)
 
         t = torch.randint(0, self.n_timesteps, (scaled_action.shape[0],), device=scaled_action.device)
 
@@ -265,15 +263,25 @@ class PPO_Diffuser(nn.Module):
                                                         )#(B,T,32)
         
    
-        raw_logits_pi, mu_raw, log_sigma_raw = self.model(noised_action, cond_feat,t_float,map_grid_feat,map_grid_traj)  # 使用修正后的地图特征
+        pred_eps = self.model(noised_action, cond_feat,t_float,map_grid_feat,map_grid_traj)  
+     
+        return F.mse_loss(noise_init, pred_eps)
+
         
-        pi = F.softmax(raw_logits_pi, dim=-1)
-        sigma = torch.exp(log_sigma_raw)
+    def predict_start_from_noise(self, x_t, t, noise):
+        return (
+                extract(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t -
+                extract(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape) * noise
+            )
+    def q_posterior(self, x_start, x_t, t):
+        posterior_mean = (
+            extract(self.posterior_mean_coef1, t, x_t.shape) * x_start +
+            extract(self.posterior_mean_coef2, t, x_t.shape) * x_t
+        )
 
-        gmm = MixtureSameFamily(Categorical(pi), Independent(Normal(mu_raw, sigma), 1))
-        logp = gmm.log_prob(scaled_action)
-
-        return -logp.mean()
+        posterior_log_variance_clipped = extract(self.posterior_log_variance_clipped, t, x_t.shape)
+        return posterior_mean, posterior_log_variance_clipped
+    
 
     def make_ddim_timesteps(self, ddim_steps: int, n_timesteps: int):
         c = torch.linspace(n_timesteps - 1, 0, ddim_steps, device=self.betas.device).long()

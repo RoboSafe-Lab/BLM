@@ -61,9 +61,9 @@ class ConvCrossAttnDiffuser(nn.Module):
                 n_heads=4,
                 grid_map_dim=32,
                 grid_map_traj_dim=32,
-                mix_gauss = 3):
+                ):
         super().__init__()
-        self.out_dim = out_dim
+       
 
         # 1) 时序特征提取
         self.temporal_conv = ResidualDilatedConv1d(
@@ -119,12 +119,7 @@ class ConvCrossAttnDiffuser(nn.Module):
         
 
         # 5) 输出头
-        self.mix_gauss = mix_gauss
-
-        self.logits_pi = nn.Conv1d(hidden_dim, mix_gauss, kernel_size=1)
-        self.logits_mu = nn.Conv1d(hidden_dim, out_dim * mix_gauss, kernel_size=1)
-        self.logits_sigma = nn.Conv1d(hidden_dim, out_dim * mix_gauss, kernel_size=1)
-        nn.init.constant_(self.logits_sigma.bias, -1.0)
+        self.out_dim = nn.Linear(hidden_dim, out_dim)
 
     def _get_pos_emb(self, B, Hm, Wm, device):
         if (self.grid_pos_cache is None) or (self.grid_pos_cache.shape[1] != Hm*Wm):
@@ -141,8 +136,8 @@ class ConvCrossAttnDiffuser(nn.Module):
         h = self.get_backbone(x, cond_feat, t, grid_map_feat, grid_map_traj)
         # 5) 输出
         
-        raw_logits_pi, mu_raw, log_sigma_raw = self.apply_mix_gauss(h)
-        return raw_logits_pi, mu_raw, log_sigma_raw
+        out = self.out_dim(h)
+        return out
     
     def get_backbone(self,x,cond_feat,t,grid_map_feat,grid_map_traj):
         h = self.apply_conv(x)      # [B, T, H]
