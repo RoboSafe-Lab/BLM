@@ -96,6 +96,12 @@ class ConvCrossAttnDiffuser(nn.Module):
         self.cond_ffn_norm = nn.LayerNorm(hidden_dim)
         
         # 3) 静态网格 (整图) Cross-Attn
+        self.grid_map_pos_mlp = nn.Sequential(
+            nn.Linear(2, hidden_dim),
+            nn.ReLU(inplace=True),
+            nn.Linear(hidden_dim, hidden_dim),
+        )
+        self.grid_map_gate = nn.Parameter(torch.zeros(1))
         self.grid_map_proj = nn.Linear(grid_map_dim, hidden_dim)
         self.grid_map_attn = nn.MultiheadAttention(
             embed_dim=hidden_dim,
@@ -106,25 +112,30 @@ class ConvCrossAttnDiffuser(nn.Module):
 
         
         # 4) grid_map_traj Cross-Attention
+        self.register_buffer("grid_pos_cache", None, persistent=False)
         self.grid_traj_proj = nn.Linear(grid_map_traj_dim, hidden_dim)
-        self.grid_traj_attn = nn.MultiheadAttention(
-            embed_dim=hidden_dim,
-            num_heads=n_heads,
-            batch_first=True,
-        )
         self.grid_traj_norm = nn.LayerNorm(hidden_dim)
+        self.traj_pos_emb = nn.Embedding(512, hidden_dim)  # 可选：显式时间步编码
+        
 
         # 5) 输出头
         self.mix_gauss = mix_gauss
-        if self.mix_gauss:
-            self.logits_pi = nn.Conv1d(hidden_dim, mix_gauss, kernel_size=1)
-            self.logits_mu = nn.Conv1d(hidden_dim, out_dim * mix_gauss, kernel_size=1)
-            self.logits_sigma = nn.Conv1d(hidden_dim, out_dim * mix_gauss, kernel_size=1)
-            nn.init.constant_(self.logits_sigma.bias, -1.0)
-        else:
-            self.head = nn.Sequential(
-                        nn.Conv1d(hidden_dim, out_dim, kernel_size=1),
-        )
+
+        self.logits_pi = nn.Conv1d(hidden_dim, mix_gauss, kernel_size=1)
+        self.logits_mu = nn.Conv1d(hidden_dim, out_dim * mix_gauss, kernel_size=1)
+        self.logits_sigma = nn.Conv1d(hidden_dim, out_dim * mix_gauss, kernel_size=1)
+        nn.init.constant_(self.logits_sigma.bias, -1.0)
+
+    def _get_pos_emb(self, B, Hm, Wm, device):
+        if (self.grid_pos_cache is None) or (self.grid_pos_cache.shape[1] != Hm*Wm):
+            yy, xx = torch.meshgrid(
+                torch.linspace(-1, 1, Hm, device=device),
+                torch.linspace(-1, 1, Wm, device=device),
+                indexing='ij'
+            )
+            pos = torch.stack([yy, xx], dim=-1).view(1, Hm*Wm, 2)
+            self.grid_pos_cache = pos  # (1, N, 2)
+        return self.grid_pos_cache.expand(B, -1, -1)
 
     def forward(self, x, cond_feat, t, grid_map_feat, grid_map_traj):
         h = self.get_backbone(x, cond_feat, t, grid_map_feat, grid_map_traj)
@@ -165,17 +176,22 @@ class ConvCrossAttnDiffuser(nn.Module):
         B, Cmap, Hm, Wm = grid_map_feat.shape
         m_flat = grid_map_feat.view(B, Cmap, -1).permute(0,2,1) 
         m_proj = self.grid_map_proj(m_flat)  # (B, N_loc, hidden_dim)
+        pos = self._get_pos_emb(B, Hm, Wm, grid_map_feat.device)
+        pos_emb = self.grid_map_pos_mlp(pos) 
+        m_proj = m_proj + pos_emb
+        
         map_attn_out, _ = self.grid_map_attn(query=h, key=m_proj, value=m_proj)
-        return self.grid_map_norm(h + map_attn_out)
+        h = h + torch.sigmoid(self.grid_map_gate) * map_attn_out
+        return self.grid_map_norm(h)
     
     def apply_grid_traj(self, h, grid_map_traj):
-        # h: [B, T, H], grid_map_traj: [B, T, C_map]
-        # 先把动态局部格网投到 hidden_dim
         m = self.grid_traj_proj(grid_map_traj)     # [B, T, H]
-        # 然后按时间步做 Cross‐Attention
-        attn, _ = self.grid_traj_attn(query=h, key=m, value=m)  # [B, T, H]
-        return self.grid_traj_norm(h + attn)
-    
+        T = h.size(1)
+        step_idx = torch.arange(T, device=h.device)
+        h  = h + self.traj_pos_emb(step_idx).unsqueeze(0)
+        h = h + m
+        return self.grid_traj_norm(h)
+
     def apply_mix_gauss(self, h):
         B, T, H = h.shape
         h = h.permute(0,2,1)

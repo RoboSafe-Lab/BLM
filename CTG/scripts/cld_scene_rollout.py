@@ -407,7 +407,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--render_px_per_m",
         type=float,
-        default=4.0,
+        default=2.0,
         help="resolution of rendering"
     )
 

@@ -254,7 +254,7 @@ class MapGridDecoder(nn.Module):
 
         self.conv2 = ConvBlock(64, [64, 64, 64], kernel_size=3, stride=1, batchnorm=batchnorm)
         self.conv3 = nn.Conv2d(64, output_channel, kernel_size=1)
-        self.out_norm = nn.LayerNorm((output_channel, int(input_hw[0]), int(input_hw[1])))
+        self.out_norm = nn.GroupNorm(output_channel,output_channel)
 
     def forward(self, feat_to_decode: torch.Tensor, encoder_feats: List[torch.Tensor]):
         assert len(encoder_feats) >= 3

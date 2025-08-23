@@ -118,7 +118,7 @@
         ],
         "attn_n_heads": 4,
         "grid_map_traj_dim": 32,
-        "mix_gauss": 5,
+        "mix_gauss": 6,
         "horizon": 50,
         "n_diffusion_steps": 100,
         "future_num_frames": 52,

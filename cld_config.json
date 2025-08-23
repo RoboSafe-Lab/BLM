@@ -100,17 +100,17 @@
       
       "history_feature_dim": 64,
       "state_encoder_out_dim": 64,
-      "neighbor_history_out_dim":64,
+      "neighbor_history_out_dim":128,
 
-      "context_encoder_hidden_dim": 64,
+      "context_encoder_hidden_dim": 128,
       "context_encoder_out_dim": 128,
 
       "time_emb_dim": 32,
       "diffusion_hidden_dim":64,
       "dilations": [1,2,4,8],
-      "num_heads":6,
+      "num_heads":4,
 
-      "num_Gaussian":5,
+      "num_Gaussian":6,
       "n_diffusion_steps": 100,
 
       "Dynamics":{
