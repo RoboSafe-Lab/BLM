@@ -63,6 +63,21 @@
              
           
             ]
+        },
+        {
+            "name": "vae_diffusion_training",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/CTG/scripts/vae_diffusion_train.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--config_file",
+                "vae_diffusion.json",
+                "--debug",
+             
+          
+            ]
         }
     ]
 }

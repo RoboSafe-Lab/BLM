@@ -27,7 +27,7 @@ from tbsim.algos.metric_algos import (
     OccupancyMetric
 )
 from tbsim.algos.safety_critical_diffusion import PPO_Diffusion_Trainer
-
+from tbsim.algos.vae_diffusion import TrajectoryVAE
 def algo_factory(config: ExperimentConfig, modality_shapes: dict):
     """
     A factory for creating training algos
@@ -77,6 +77,8 @@ def algo_factory(config: ExperimentConfig, modality_shapes: dict):
         algo = SceneDiffuserTrafficModel(algo_config=algo_config, modality_shapes=modality_shapes, registered_name=config.registered_name)
     elif algo_name == "diffuser_ppo":
         algo = PPO_Diffusion_Trainer(algo_config=algo_config, modality_shapes=modality_shapes, registered_name=config.registered_name)
+    elif algo_name == "vae_diffusion":
+        algo = TrajectoryVAE(algo_config=algo_config, modality_shapes=modality_shapes, registered_name=config.registered_name)
     else:
         raise NotImplementedError("{} is not a valid algorithm" % algo_name)
     return algo

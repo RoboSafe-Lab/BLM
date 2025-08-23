@@ -6,19 +6,15 @@ import torch.optim as optim
 import torch.nn as nn
 from tbsim.policies.common import Plan, Action
 from tbsim.utils.trajdata_utils import convert_scene_data_to_agent_coordinates,  add_scene_dim_to_agent_data, get_stationary_mask
+import torch
+from tbsim.models.ppo_vae import PPO_VAE
 
-
-
-class PPO_Diffusion_Trainer(pl.LightningModule):
+class TrajectoryVAE(pl.LightningModule):
     def __init__(self, algo_config, modality_shapes, registered_name):
         super().__init__()
         self.algo_config = algo_config
-        self.nets = nn.ModuleDict() 
-        self.disable_control_on_stationary = algo_config.disable_control_on_stationary
-        self.moving_speed_th = algo_config.moving_speed_th
-    
-
-        self.nets['policy'] = PPO_Diffuser(
+        self.nets = nn.ModuleDict()
+        self.nets['policy'] = PPO_VAE(
             map_encoder_model_arch=algo_config.map_encoder_model_arch,
             input_image_shape = modality_shapes['image'],
             global_feature_dim = algo_config.global_feature_dim,
@@ -36,24 +32,24 @@ class PPO_Diffusion_Trainer(pl.LightningModule):
             context_encoder_hidden_dim = algo_config.context_encoder_hidden_dim,
             context_encoder_out_dim = algo_config.context_encoder_out_dim,
 
-            time_emb_dim = algo_config.time_emb_dim,
-            diffusion_hidden_dim = algo_config.diffusion_hidden_dim,
-            dilations = algo_config.dilations,
-            num_heads = algo_config.num_heads,
-       
+            vae_input_dim = algo_config.vae['vae_input_dim'],
+            vae_enc_channels = algo_config.vae['vae_enc_channels'],
+            vae_latent_dim = algo_config.vae['vae_latent_dim'],
+            vae_downsample_stride = algo_config.vae['vae_downsample_stride'],
+            vae_lowpass_kernel = algo_config.vae['vae_lowpass_kernel'],
+            vae_dec_channels = algo_config.vae['vae_dec_channels'],
+            vae_output_dim = algo_config.vae['vae_output_dim'],
 
             dynamics_kwargs = algo_config.Dynamics,
-            n_timesteps = algo_config.n_diffusion_steps,
 
-            dt = algo_config.dt,
-            ddim_steps = algo_config.ddim_steps,
-          
+
+            beta = algo_config.vae['beta']
         )
+
 
         self.cur_train_step = 0
     
    
-
 
 
     def on_train_batch_end(self, outputs, batch, batch_idx):

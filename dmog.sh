@@ -17,8 +17,8 @@ export WANDB_APIKEY=1e2e2040243d63e8577d02a48e3881807e1944d5
 
 
 
-python ~/safety_critical/CTG/scripts/cld_training.py \
-    --config_file "cld_config.json" \
+python ~/safety_critical/CTG/scripts/vae_diffusion_train.py \
+    --config_file "vae_diffusion.json" \
     # --rebuild_cache "false" \
     # --num_Gaussian "5" \
     # --training_num_steps 50000 \
