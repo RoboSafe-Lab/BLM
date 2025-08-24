@@ -103,15 +103,13 @@ class TemporalDecoderWithContext(nn.Module):
         grid_map_traj_T: torch.Tensor,  # [B, T, traj_feat_dim]
     ) -> torch.Tensor:                  # -> [B, T, out_dim]
         B, L, d = z_bld.shape
-        T = grid_map_traj_T.size(1)
         s = self.upsample_stride
-        assert T == L * s, f"T should equal L*stride, got T={T}, L={L}, stride={s}"
+        T = L * s 
 
-        # 上采样到 T（复制低频骨架）
+
         z_up = z_bld.repeat_interleave(s, dim=1)         # [B, T, d]
-
-        # 投射到隐藏维并融合逐帧地图特征
         h = self.z_proj(z_up) 
+
         if grid_map_traj_T is not None:
             h = h + self.traj_proj(grid_map_traj_T)
 
@@ -310,15 +308,18 @@ class PPO_VAE(nn.Module):
         eps = torch.randn_like(std)
         z = mu + std * eps   
 
-        grid_map_traj_T = self.query_map_feats(
-            batch['center_fut_positions'].detach(),   # 训练时用 GT 位置
-            map_grid_feat,
-            batch['raster_from_center'])
-
+        # grid_map_traj_T = self.query_map_feats(
+        #     batch['center_fut_positions'].detach(),   # 训练时用 GT 位置
+        #     map_grid_feat,
+        #     batch['raster_from_center'])
+        p_drop = 0.1
+        if self.training and torch.rand(1, device=cond_feat.device) < p_drop:
+            cond_feat = None
+            
         x_hat = self.vae_decoder(
             z_bld=z,
             cond_feat=cond_feat,
-            grid_map_traj_T=grid_map_traj_T
+            grid_map_traj_T=None
         )
         mask = batch['center_fut_availabilities'].unsqueeze(-1)
         mse_elem = F.mse_loss(x_hat, x, reduction='none')  
@@ -327,7 +328,7 @@ class PPO_VAE(nn.Module):
         recon = mse_masked.sum() / denom
 
         kl = (-0.5 * (1 + logvar - mu.pow(2) - logvar.exp())).mean()
-    
+        kl = torch.clamp(kl, min=0.005)
 
         return recon, kl
     
