@@ -4,7 +4,7 @@
       "logging": {
         "terminal_output_to_txt": true,
         "log_wandb": true,
-        "wandb_project_name": "VAE",
+        "wandb_project_name": "Latent_Diffusion",
         "log_every_n_steps": 10,
         "flush_every_n_steps": 100
       },
@@ -151,12 +151,12 @@
         "latent_diffusion":{
            
         },
-        "vae_ckpt_path": "safety_critical_trained_models/vae/checkpoints/iter5000.ckpt"
+        "vae_ckpt_path": "safety_critical_trained_models/vae/checkpoints/iter15000.ckpt"
     
 
       },
     
-    "name": "vae",
+    "name": "linux",
     "root_dir": "safety_critical_trained_models/",
     "seed": 42
 
