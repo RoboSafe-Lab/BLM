@@ -35,7 +35,7 @@ class TrajectoryVAE(pl.LightningModule):
             vae_input_dim = algo_config.vae['vae_input_dim'],
             vae_enc_channels = algo_config.vae['vae_enc_channels'],
             vae_latent_dim = algo_config.vae['vae_latent_dim'],
-            vae_downsample_stride = algo_config.vae['vae_downsample_stride'],
+            vae_sample_stride = algo_config.vae['vae_sample_stride'],
             vae_lowpass_kernel = algo_config.vae['vae_lowpass_kernel'],
             vae_dec_channels = algo_config.vae['vae_dec_channels'],
             vae_output_dim = algo_config.vae['vae_output_dim'],

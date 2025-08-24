@@ -141,11 +141,11 @@
         "vae_input_dim": 2,
         "vae_enc_channels": 64,
         "vae_latent_dim": 8,
-        "vae_downsample_stride": 4,
+        "vae_sample_stride": 4,
         "vae_lowpass_kernel": 7,
         "vae_dec_channels": 64,
         "vae_output_dim": 2,
-        "beta":0.001
+        "beta":10
 
         }
     

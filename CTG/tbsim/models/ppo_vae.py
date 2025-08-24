@@ -62,118 +62,70 @@ class TemporalEncoder(nn.Module):
 
 
 
-class TemporalDecoder(nn.Module):
-    def __init__(self,
-                 latent_dim: int = 8,
-                 hidden_dim: int = 64,
-                 output_dim: int = 2,
-                 upsample_stride: int = 4,
-                 # context 维度
-                 cond_dim: int = 0,              # 全局 cond_feat
-                 grid_traj_dim: int = 0,         # 逐帧局部地图特征维度 (T, Cg)
-                 grid_map_dim: int = 32,         # 全图特征每像素的通道（与 MapEncoder 对齐）
-                 n_heads: int = 4):
+class TemporalDecoderWithContext(nn.Module):
+
+    def __init__(
+        self,
+        latent_dim: int = 8,       # 与 encoder 的 z 维度一致
+        traj_feat_dim: int = 32,   # grid_map_traj_T 的通道数
+        cond_dim: int = 128,       # cond_feat 的维度（你的 context_encoder_out_dim）
+        hidden: int = 128,
+        upsample_stride: int = 4,  # L -> T = L * stride
+        out_dim: int = 2           # 动作维度（如 [a_lon, yaw_rate]）
+    ):
         super().__init__()
-        self.output_dim = output_dim
-        self.hidden_dim = hidden_dim
         self.upsample_stride = upsample_stride
-        self.use_film = cond_dim > 0
-        self.use_traj_ctx = grid_traj_dim > 0
 
-        # 1) latent -> T 的“粗特征”
-        self.up = nn.Sequential(
-            nn.ConvTranspose1d(latent_dim, hidden_dim,
-                               kernel_size=8, stride=upsample_stride, padding=2),
+        # 1) 线性把 z、traj_feat 投到同一隐藏维
+        self.z_proj    = nn.Linear(latent_dim, hidden)
+        self.traj_proj = nn.Linear(traj_feat_dim, hidden)
+
+        # 2) cond_feat 做 FiLM（轻量调制）
+        self.cond_to_film = nn.Sequential(
+            nn.Linear(cond_dim, hidden * 2)
+        )
+
+        # 3) 时间细化（小型 1D 卷积堆）
+        self.refine = nn.Sequential(
+            nn.Conv1d(hidden, hidden, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
-            nn.Conv1d(hidden_dim, hidden_dim, kernel_size=3, padding=1),
+            nn.Conv1d(hidden, hidden, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
         )
 
-        # 2) 全局 context → FiLM(γ, β) 调制通道
-        if self.use_film:
-            self.cond_to_film = nn.Sequential(
-                nn.Linear(cond_dim, hidden_dim * 2),
-                nn.ReLU(inplace=True),
-                nn.Linear(hidden_dim * 2, hidden_dim * 2),
-            )
+        # 4) 输出头
+        self.head = nn.Conv1d(hidden, out_dim, kernel_size=1)
 
-        # 3) 逐帧局部地图特征 (T, Cg) → 投影到 hidden_dim，逐时刻相加
-        if self.use_traj_ctx:
-            self.traj_proj = nn.Linear(grid_traj_dim, hidden_dim)
-
-        # 4) 全图 Cross-Attn（整图 token + 2D 位置）
-        self.grid_map_proj = nn.Linear(grid_map_dim, hidden_dim)
-        self.grid_map_attn = nn.MultiheadAttention(
-            embed_dim=hidden_dim, num_heads=n_heads, batch_first=True
-        )
-        self.grid_map_gate = nn.Parameter(torch.zeros(1))
-        self.grid_map_norm = nn.LayerNorm(hidden_dim)
-
-        # 5) 最终读出
-        self.to_out = nn.Conv1d(hidden_dim, output_dim, kernel_size=3, padding=1)
-
-        self.phase_emb = nn.Embedding(upsample_stride, hidden_dim)
-
-        self.register_buffer("grid_pos_cache", None, persistent=False)
-
-    # ---- 生成 2D 位置编码 ----
-    def _get_pos_emb(self, B, Hm, Wm, device):
-        if (self.grid_pos_cache is None) or (self.grid_pos_cache.shape[1] != Hm * Wm):
-            yy, xx = torch.meshgrid(
-                torch.linspace(-1, 1, Hm, device=device),
-                torch.linspace(-1, 1, Wm, device=device),
-                indexing='ij'
-            )
-            pos = torch.stack([yy, xx], dim=-1).view(1, Hm * Wm, 2)  # (1, N, 2)
-            self.grid_pos_cache = pos
-        return self.grid_pos_cache.expand(B, -1, -1)                 # (B, N, 2)
-
-    def forward(self,
-                z_bld: torch.Tensor,                    # [B, L, d]
-                cond_feat: torch.Tensor = None,         # [B, cond_dim]
-                grid_map_feat: torch.Tensor = None,     # [B, Cg, H, W]
-                grid_map_traj_T: torch.Tensor = None):  # [B, T, Cg]
+    def forward(
+        self,
+        z_bld: torch.Tensor,            # [B, L, latent_dim]
+        cond_feat: torch.Tensor,        # [B, cond_dim]
+        grid_map_traj_T: torch.Tensor,  # [B, T, traj_feat_dim]
+    ) -> torch.Tensor:                  # -> [B, T, out_dim]
         B, L, d = z_bld.shape
+        T = grid_map_traj_T.size(1)
+        s = self.upsample_stride
+        assert T == L * s, f"T should equal L*stride, got T={T}, L={L}, stride={s}"
 
-        # 1) latent 上采样到 T：h [B, T, H]
-        h = self.up(z_bld.permute(0, 2, 1)).permute(0, 2, 1)   # [B,H,T] -> [B,T,H]
+        # 上采样到 T（复制低频骨架）
+        z_up = z_bld.repeat_interleave(s, dim=1)         # [B, T, d]
 
-        
-        T = h.size(1)
-        phase = torch.arange(T, device=h.device) % self.upsample_stride  # [T]
-        h = h + self.phase_emb(phase).unsqueeze(0)                        # [B,T,H]
+        # 投射到隐藏维并融合逐帧地图特征
+        h = self.z_proj(z_up) + self.traj_proj(grid_map_traj_T)   # [B, T, H]
 
-        # 2) 逐帧局部地图：投影后逐时刻相加
+        # FiLM 调制：cond_feat -> (γ, β)
+        gamma, beta = self.cond_to_film(cond_feat).chunk(2, dim=-1)  # [B, H], [B, H]
+        gamma = gamma.unsqueeze(1)  # [B, 1, H]
+        beta  = beta.unsqueeze(1)   # [B, 1, H]
+        h = gamma * h + beta        # [B, T, H]
 
-        traj_ctx = self.traj_proj(grid_map_traj_T)        # [B,T,H]
-        h = h + traj_ctx
+        # 时间细化
+        h = h.permute(0, 2, 1)      # [B, H, T]
+        h = self.refine(h)          # [B, H, T]
 
-        # 3) 全局条件 FiLM：通道调制
-  
-        film = self.cond_to_film(cond_feat)               # [B,2H]
-        gamma, beta = film.chunk(2, dim=-1)               # [B,H], [B,H]
-        h = gamma.unsqueeze(1) * h + beta.unsqueeze(1)    # [B,T,H]
-
-        # 4) 全图 Cross-Attn：query=h(T步)，key/value=整图token（带2D位置）
-      
-        Bm, Cg, Hm, Wm = grid_map_feat.shape
-        assert Bm == B, "grid_map_feat batch mismatch"
-        # flatten map -> (B, N, Cg) -> proj (B,N,H)
-        m_flat = grid_map_feat.view(B, Cg, -1).permute(0, 2, 1)          # (B, N, Cg)
-        m_proj = self.grid_map_proj(m_flat)                               # (B, N, H)
-        # 2D 位置编码
-        pos = self._get_pos_emb(B, Hm, Wm, grid_map_feat.device)          # (B, N, 2)
-        pos_emb = nn.functional.relu(nn.Linear(2, self.hidden_dim, bias=False).to(h.device)(pos))
-        m_proj = m_proj + pos_emb                                         # (B, N, H)
-
-        attn, _ = self.grid_map_attn(query=h, key=m_proj, value=m_proj)   # (B, T, H)
-        h = h + torch.sigmoid(self.grid_map_gate) * attn
-        h = self.grid_map_norm(h)
-
-        # 5) 输出到动作维
-        x_hat = self.to_out(h.permute(0, 2, 1)).permute(0, 2, 1)              # [B,T,output_dim]
-        return x_hat
-
+        # 输出
+        out = self.head(h).permute(0, 2, 1)  # [B, T, out_dim]
+        return out
 
 class PPO_VAE(nn.Module):
     def __init__(
@@ -198,7 +150,7 @@ class PPO_VAE(nn.Module):
         vae_input_dim,
         vae_enc_channels,
         vae_latent_dim,
-        vae_downsample_stride,
+        vae_sample_stride,
         vae_lowpass_kernel,
         vae_dec_channels,
         vae_output_dim,
@@ -237,17 +189,16 @@ class PPO_VAE(nn.Module):
             input_dim=vae_input_dim,
             enc_channels=vae_enc_channels,
             latent_dim=vae_latent_dim,
-            downsample_stride=vae_downsample_stride,
+            downsample_stride=vae_sample_stride,
             lowpass_kernel=vae_lowpass_kernel
         )
-        self.vae_decoder = TemporalDecoder(
+        self.vae_decoder = TemporalDecoderWithContext(
             latent_dim=vae_latent_dim,
-            hidden_dim=vae_dec_channels,
-            output_dim=vae_output_dim,
-            upsample_stride=vae_downsample_stride,
+            traj_feat_dim=grid_feature_dim,
             cond_dim=context_encoder_out_dim,
-            grid_traj_dim=grid_feature_dim,
-            grid_map_dim=grid_feature_dim,
+            hidden=context_encoder_hidden_dim,
+            upsample_stride=vae_sample_stride,
+            out_dim=vae_output_dim
         )
 
         self._dynamics_kwargs = dynamics_kwargs
@@ -378,7 +329,6 @@ class PPO_VAE(nn.Module):
         x_hat = self.vae_decoder(
             z_bld=z,
             cond_feat=cond_feat,
-            grid_map_feat=map_grid_feat,
             grid_map_traj_T=grid_map_traj_T
         )
 
