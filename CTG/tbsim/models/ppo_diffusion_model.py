@@ -60,7 +60,6 @@ class ConvCrossAttnDiffuser(nn.Module):
                 dilations=(1,2,4),
                 n_heads=4,
                 grid_map_dim=32,
-                grid_map_traj_dim=32,
                 ):
         super().__init__()
        
@@ -113,9 +112,7 @@ class ConvCrossAttnDiffuser(nn.Module):
         
         # 4) grid_map_traj Cross-Attention
         self.register_buffer("grid_pos_cache", None, persistent=False)
-        self.grid_traj_proj = nn.Linear(grid_map_traj_dim, hidden_dim)
-        self.grid_traj_norm = nn.LayerNorm(hidden_dim)
-        self.traj_pos_emb = nn.Embedding(512, hidden_dim)  # 可选：显式时间步编码
+
         
 
         # 5) 输出头
@@ -132,19 +129,17 @@ class ConvCrossAttnDiffuser(nn.Module):
             self.grid_pos_cache = pos  # (1, N, 2)
         return self.grid_pos_cache.expand(B, -1, -1)
 
-    def forward(self, x, cond_feat, t, grid_map_feat, grid_map_traj):
-        h = self.get_backbone(x, cond_feat, t, grid_map_feat, grid_map_traj)
-        # 5) 输出
-        
+    def forward(self, x, cond_feat, t, grid_map_feat):
+        h = self.get_backbone(x, cond_feat, t, grid_map_feat)
         out = self.out_dim(h)
         return out
     
-    def get_backbone(self,x,cond_feat,t,grid_map_feat,grid_map_traj):
+    def get_backbone(self,x,cond_feat,t,grid_map_feat):
         h = self.apply_conv(x)      # [B, T, H]
         h = self.apply_time(h, t)   # [B, T, H]
         h = self.apply_cond(h, cond_feat)  # [B, T, H]
         h = self.apply_grid_map(h, grid_map_feat)  # [B, T, H]
-        h = self.apply_grid_traj(h, grid_map_traj)  # [B, T, H]
+
         return h
 
     def apply_conv(self,x):
@@ -179,15 +174,8 @@ class ConvCrossAttnDiffuser(nn.Module):
         h = h + torch.sigmoid(self.grid_map_gate) * map_attn_out
         return self.grid_map_norm(h)
     
-    def apply_grid_traj(self, h, grid_map_traj):
-        m = self.grid_traj_proj(grid_map_traj)     # [B, T, H]
-        T = h.size(1)
-        step_idx = torch.arange(T, device=h.device)
-        h  = h + self.traj_pos_emb(step_idx).unsqueeze(0)
-        h = h + m
-        return self.grid_traj_norm(h)
 
-    def apply_mix_gauss(self, h):
+
         B, T, H = h.shape
         h = h.permute(0,2,1)
         raw_logits_pi = self.logits_pi(h).permute(0,2,1).view(B,T,self.mix_gauss)

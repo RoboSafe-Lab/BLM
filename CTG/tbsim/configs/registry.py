@@ -93,6 +93,7 @@ from tbsim.configs.algo_config import (
 
 
 EXP_CONFIG_REGISTRY = dict()
+
 EXP_CONFIG_REGISTRY["vae_diffusion"] = ExperimentConfig(
     train_config=CLDTrainConfig(),
     env_config=CLDEnvConfig(),

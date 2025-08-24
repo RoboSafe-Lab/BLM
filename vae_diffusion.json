@@ -123,7 +123,7 @@
 
 
 
-      "name": "vae_diffusion",  
+      "name": "latent_diffusion",  
    
     
       "disable_control_on_stationary": "any_speed",
@@ -147,7 +147,11 @@
         "beta_max":10,
         "beta_warmup_steps": 10000
 
-        }
+        },
+        "latent_diffusion":{
+           
+        },
+        "vae_ckpt_path": "safety_critical_trained_models/vae/checkpoints/iter5000.ckpt"
     
 
       },
