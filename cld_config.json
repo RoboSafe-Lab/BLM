@@ -4,7 +4,7 @@
       "logging": {
         "terminal_output_to_txt": true,
         "log_wandb": true,
-        "wandb_project_name": "SC_GMM_Diffuser",
+        "wandb_project_name": "Diffusion_Model",
         "log_every_n_steps": 10,
         "flush_every_n_steps": 100
       },
@@ -110,7 +110,7 @@
       "dilations": [1,2,4,8],
       "num_heads":4,
 
-      "num_Gaussian":6,
+      "num_Gaussian":5,
       "n_diffusion_steps": 100,
 
       "Dynamics":{
@@ -139,7 +139,7 @@
 
       },
     
-    "name": "K6_UnifiedDataset",
+    "name": "Diffusion_Model-v2",
     "root_dir": "safety_critical_trained_models/",
     "seed": 42
 

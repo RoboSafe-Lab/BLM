@@ -4,7 +4,7 @@
       "logging": {
         "terminal_output_to_txt": true,
         "log_wandb": true,
-        "wandb_project_name": "SC_GMM_Diffuser",
+        "wandb_project_name": "VAE",
         "log_every_n_steps": 10,
         "flush_every_n_steps": 100
       },
@@ -152,7 +152,7 @@
 
       },
     
-    "name": "K6_UnifiedDataset",
+    "name": "vae",
     "root_dir": "safety_critical_trained_models/",
     "seed": 42
 
