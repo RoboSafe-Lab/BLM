@@ -41,15 +41,13 @@ class TrajectoryVAE(pl.LightningModule):
             vae_output_dim = algo_config.vae['vae_output_dim'],
 
             dynamics_kwargs = algo_config.Dynamics,
-
-
-            beta = algo_config.vae['beta']
         )
 
 
         self.cur_train_step = 0
     
-   
+        self.beta_max = algo_config.vae['beta_max']
+        self.beta_warmup_steps = algo_config.vae['beta_warmup_steps']
 
 
     def on_train_batch_end(self, outputs, batch, batch_idx):
@@ -59,16 +57,30 @@ class TrajectoryVAE(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         batch = parse_batch(batch)
         B = batch['center_fut_positions'].shape[0]
-        loss= self.nets['policy'].compute_loss(batch)
+        recon, kl = self.nets['policy'].compute_loss(batch)
+
+        kl_weight = min(self.beta_max,
+                        self.beta_max * float(self.cur_train_step) / float(self.beta_warmup_steps))
+
+        loss = recon + kl_weight * kl
         self.log('train_loss', loss, prog_bar=True, batch_size=B,on_step=True)
+        self.log('train_recon', recon, prog_bar=True, batch_size=B,on_step=True)
+        self.log('train_kl', kl, prog_bar=True, batch_size=B,on_step=True)
+        self.log('train_kl_weight', kl_weight, prog_bar=True, batch_size=B,on_step=True)
         return loss
 
     
     def validation_step(self, batch, batch_idx):
         batch = parse_batch(batch)
         B = batch['center_fut_positions'].shape[0]
-        loss= self.nets['policy'].compute_loss(batch)
+        recon, kl = self.nets['policy'].compute_loss(batch)
+        kl_weight = min(self.beta_max,
+                        self.beta_max * float(self.cur_train_step) / float(self.beta_warmup_steps))
+        loss = recon + kl_weight * kl
         self.log(f'val_loss', loss, prog_bar=True, batch_size=B,on_epoch=True)
+        self.log('val_recon', recon, prog_bar=True, batch_size=B,on_epoch=True)
+        self.log('val_kl', kl, prog_bar=True, batch_size=B,on_epoch=True)
+        self.log('val_kl_weight', kl_weight, prog_bar=True, batch_size=B,on_epoch=True)
         return loss
 
 
@@ -85,33 +97,3 @@ class TrajectoryVAE(pl.LightningModule):
         """记录当前学习率"""
         current_lr = self.trainer.optimizers[0].param_groups[0]['lr']
         self.log('learning_rate', current_lr)
-
-    def forward(self,obs,global_t):
-        if global_t ==0:
-            self.stationary_mask = get_stationary_mask(obs, self.disable_control_on_stationary, self.moving_speed_th)
-            B = self.stationary_mask.shape[0]
-            stationary_mask_expand =  self.stationary_mask
-        else:
-            stationary_mask_expand = None
-
-        return self.nets['policy'](obs, stationary_mask=stationary_mask_expand, global_t=global_t)
-
-    def get_action(self, obs_torch, **kwargs):
-        # from tbsim.utils.safety_critical_fig_vis import plot_trajdata_batch
-        # plot_trajdata_batch(obs_torch,None)
-        preds = self(obs_torch, global_t=kwargs['step_index'])["predictions"]
-        preds_positions = preds["positions"]
-        # 
-        preds_yaws = preds["yaws"]
-
-        info = dict(
-            action_samples=Action(
-                positions=preds_positions,
-                yaws=preds_yaws
-            ).to_dict(),
-        )
-        action = Action(
-            positions=preds_positions,
-            yaws=preds_yaws
-        )
-        return action, info

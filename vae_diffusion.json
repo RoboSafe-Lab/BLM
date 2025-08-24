@@ -124,7 +124,6 @@
 
 
       "name": "vae_diffusion",  
-      "scene_agent_max_neighbor_dist": 30,
    
     
       "disable_control_on_stationary": "any_speed",
@@ -145,7 +144,8 @@
         "vae_lowpass_kernel": 7,
         "vae_dec_channels": 64,
         "vae_output_dim": 2,
-        "beta":10
+        "beta_max":10,
+        "beta_warmup_steps": 10000
 
         }
     

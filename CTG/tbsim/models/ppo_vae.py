@@ -111,20 +111,18 @@ class TemporalDecoderWithContext(nn.Module):
         z_up = z_bld.repeat_interleave(s, dim=1)         # [B, T, d]
 
         # 投射到隐藏维并融合逐帧地图特征
-        h = self.z_proj(z_up) + self.traj_proj(grid_map_traj_T)   # [B, T, H]
+        h = self.z_proj(z_up) 
+        if grid_map_traj_T is not None:
+            h = h + self.traj_proj(grid_map_traj_T)
 
         # FiLM 调制：cond_feat -> (γ, β)
-        gamma, beta = self.cond_to_film(cond_feat).chunk(2, dim=-1)  # [B, H], [B, H]
-        gamma = gamma.unsqueeze(1)  # [B, 1, H]
-        beta  = beta.unsqueeze(1)   # [B, 1, H]
-        h = gamma * h + beta        # [B, T, H]
+        if cond_feat is not None:
+            gamma, beta = self.cond_to_film(cond_feat).chunk(2, dim=-1)  # [B,H],[B,H]
+            h = gamma.unsqueeze(1) * h + beta.unsqueeze(1)
 
         # 时间细化
-        h = h.permute(0, 2, 1)      # [B, H, T]
-        h = self.refine(h)          # [B, H, T]
-
-        # 输出
-        out = self.head(h).permute(0, 2, 1)  # [B, T, out_dim]
+        h = self.refine(h.permute(0, 2, 1))       # [B,H,T]
+        out = self.head(h).permute(0, 2, 1)       # [B,T,2]
         return out
 
 class PPO_VAE(nn.Module):
@@ -156,7 +154,7 @@ class PPO_VAE(nn.Module):
         vae_output_dim,
       
         dynamics_kwargs,
-        beta
+    
 
     ):
         super().__init__()
@@ -205,7 +203,7 @@ class PPO_VAE(nn.Module):
         self._create_dynamics(dynamics_kwargs)        
 
                               
-        self.beta = beta
+     
         norm_add_coeffs = norm_info_center[0]
         norm_div_coeffs = norm_info_center[1]
         self.add_coeffs = np.array(norm_add_coeffs).astype('float32')
@@ -264,25 +262,16 @@ class PPO_VAE(nn.Module):
         - raster_from_agent: (B, 3, 3)
         '''
         B, T, _ = x.size()
-        _, C, Hfeat, Wfeat = map_grid_feat.size()
+        _, _, Hfeat, Wfeat = map_grid_feat.size()
 
-        # unscale to agent coords
-        pos_traj = self.descale_traj(x.detach())[:,:,:2]
-        # convert to raster frame
-        raster_pos_traj = transform_points_tensor(pos_traj, raster_from_agent)
+        raster_xy = transform_points_tensor(x, raster_from_agent)
 
-        # scale to the feature map size
-        _, H, W = self.input_image_shape
-        xscale = Wfeat / W
-        yscale = Hfeat / H
-        raster_pos_traj[:,:,0] = raster_pos_traj[:,:,0] * xscale
-        raster_pos_traj[:,:,1] = raster_pos_traj[:,:,1] * yscale
+        _, H_in, W_in = self.input_image_shape
 
-        # interpolate into feature grid
-        feats_out = query_feature_grid(
-                            raster_pos_traj,
-                            map_grid_feat
-                            )
+        raster_xy[:,:,0] *= (Wfeat / W_in)
+        raster_xy[:,:,1] *= (Hfeat / H_in)
+
+        feats_out = query_feature_grid(raster_xy,map_grid_feat)
         feats_out = feats_out.reshape((B, T, -1))
         return feats_out
 
@@ -331,13 +320,16 @@ class PPO_VAE(nn.Module):
             cond_feat=cond_feat,
             grid_map_traj_T=grid_map_traj_T
         )
-
-        recon = F.mse_loss(x_hat, x)
+        mask = batch['center_fut_availabilities'].unsqueeze(-1)
+        mse_elem = F.mse_loss(x_hat, x, reduction='none')  
+        mse_masked = mse_elem * mask 
+        denom = (mask.sum() * x.size(-1)).clamp_min(1.0)                       # 防 0
+        recon = mse_masked.sum() / denom
 
         kl = (-0.5 * (1 + logvar - mu.pow(2) - logvar.exp())).mean()
-        loss = recon + self.beta * kl
+    
 
-        return loss
+        return recon, kl
     
         
 
