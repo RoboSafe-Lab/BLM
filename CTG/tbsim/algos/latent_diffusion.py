@@ -14,12 +14,16 @@ class LatentDiffusion(pl.LightningModule):
         super().__init__()
         self.algo_config = algo_config
         self.nets = nn.ModuleDict()
+        self.disable_control_on_stationary = algo_config.disable_control_on_stationary
+        self.moving_speed_th = algo_config.moving_speed_th
+
         vae = TrajectoryVAE.load_from_checkpoint(
             algo_config.vae_ckpt_path,
             algo_config=algo_config,
             modality_shapes=modality_shapes,
             registered_name=None
         ).nets['policy']
+        print(f"vae loaded from {algo_config.vae_ckpt_path}")
 
         self._externals = {"vae": vae}
         self.nets['policy'] = PPO_LatentDiffusion(
@@ -56,6 +60,7 @@ class LatentDiffusion(pl.LightningModule):
 
 
         self.cur_train_step = 0
+        
 
     def _freeze_vae(self):
         vae = self._externals["vae"]
@@ -102,3 +107,34 @@ class LatentDiffusion(pl.LightningModule):
         """记录当前学习率"""
         current_lr = self.trainer.optimizers[0].param_groups[0]['lr']
         self.log('learning_rate', current_lr)
+
+    def forward(self,obs,global_t):
+        if global_t ==0:
+            self.stationary_mask = get_stationary_mask(obs, self.disable_control_on_stationary, self.moving_speed_th)
+            B = self.stationary_mask.shape[0]
+            stationary_mask_expand =  self.stationary_mask
+        else:
+            stationary_mask_expand = None
+
+        return self.nets['policy'](obs, self._externals["vae"],stationary_mask=stationary_mask_expand, global_t=global_t,)
+
+    def get_action(self, obs_torch, **kwargs):
+        # from tbsim.utils.safety_critical_fig_vis import plot_trajdata_batch
+        # plot_trajdata_batch(obs_torch,None)
+        self._freeze_vae()
+        preds = self(obs_torch, global_t=kwargs['step_index'])["predictions"]
+        preds_positions = preds["positions"]
+        # 
+        preds_yaws = preds["yaws"]
+
+        info = dict(
+            action_samples=Action(
+                positions=preds_positions,
+                yaws=preds_yaws
+            ).to_dict(),
+        )
+        action = Action(
+            positions=preds_positions,
+            yaws=preds_yaws
+        )
+        return action, info

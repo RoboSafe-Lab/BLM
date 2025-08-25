@@ -28,7 +28,7 @@ from .diffuser_helpers import (
     extract
 )
 from tbsim.dynamics import Unicycle
-
+import tbsim.utils.tensor_utils as TensorUtils
 
 class PPO_LatentDiffusion(nn.Module):
     def __init__(
@@ -260,3 +260,127 @@ class PPO_LatentDiffusion(nn.Module):
      
         return F.mse_loss(noise, pred_eps)
 
+    def convert_action_to_state_and_action(self, x_out, curr_states, scaled_input=True, descaled_output=False):
+ 
+        dim = len(x_out.shape)
+        if dim == 4:
+            B, N, T, _ = x_out.shape
+            x_out = TensorUtils.join_dimensions(x_out,0,2)
+
+        if scaled_input:
+            x_out = self.descale_traj(x_out, [4, 5])
+        x_out_state = unicyle_forward_dynamics(
+            dyn_model=self.dyn,
+            initial_states=curr_states,
+            actions=x_out,
+            step_time=self.dt,
+            mode='parallel'
+        )
+
+        x_out_all = torch.cat([x_out_state, x_out], dim=-1)
+        if scaled_input and not descaled_output:
+            x_out_all = self.scale_traj(x_out_all, [0, 1, 2, 3, 4, 5])
+
+        if dim == 4:
+            x_out_all = x_out_all.reshape([B, N, T, -1])
+        return x_out_all
+
+
+
+    def forward(self, obs, vae, stationary_mask, global_t=0):
+            if global_t == 0:
+                self.stationary_mask = stationary_mask
+            center_fut_action = torch.cat([obs['center_fut_acc_lons'].unsqueeze(-1),
+                                obs['center_fut_yaw_rates'].unsqueeze(-1)],dim=-1)
+        
+            x = self.scale_traj(center_fut_action)
+
+            with torch.no_grad():
+                mu, logvar = vae.vae_encoder(x) 
+                std = (0.5 * logvar).exp()
+                eps_post = torch.randn_like(std)
+                z0 = mu + std * eps_post
+     
+                
+            return self.sample_ddim(obs,eta=0.3,z0=z0,vae=vae)
+
+    def make_ddim_timesteps(self):
+            c = torch.linspace(self.n_timesteps - 1, 0, self.ddim_steps, device=self.betas.device).long()
+            next_c = list(c[1:].tolist()) + [0]
+            return c.tolist(), next_c
+
+    @torch.no_grad()
+    def sample_ddim(self, batch, eta=0.3, z0=None, vae=None):
+
+        # 1) 条件编码
+        
+        cond_feat, map_grid_feat = self.context_encoder(batch)
+
+        B, L, d_latent = z0.shape
+        
+
+        # 2) 生成DDIM时间步
+        timesteps, next_timesteps = self.make_ddim_timesteps()
+
+        # 3) 初始化 x_T
+        z_t = torch.randn((B, L, d_latent), device=z0.device)
+
+        for t, t_next in zip(timesteps, next_timesteps):
+            t_tensor      = torch.full((B,), t,      dtype=torch.long, device=cond_feat.device)
+            t_next_tensor = torch.full((B,), t_next, dtype=torch.long, device=cond_feat.device)        
+            t_float = t_tensor.float() / (self.n_timesteps - 1)
+
+
+
+            eps_pred = self.model(z_t, cond_feat, t_float, map_grid_feat)
+
+            alpha_t    = extract(self.alphas_cumprod, t_tensor,      z_t.shape)
+            alpha_next = extract(self.alphas_cumprod, t_next_tensor, z_t.shape)
+                
+            sqrt_alpha_t = torch.sqrt(alpha_t)
+            sqrt_one_minus_alpha_t = torch.sqrt((1 - alpha_t).clamp_min(1e-8))
+            
+            x0_pred = (z_t - sqrt_one_minus_alpha_t * eps_pred) / sqrt_alpha_t
+            
+            sigma_t = eta * torch.sqrt(
+                ((1 - alpha_t / alpha_next) * (1 - alpha_next) / (1 - alpha_t)).clamp_min(1e-8)
+            )
+            
+            dir_coeff = torch.sqrt((1. - alpha_next - sigma_t ** 2).clamp_min(1e-8))
+            noise = torch.randn_like(z_t)
+            z_t = torch.sqrt(alpha_next) * x0_pred + dir_coeff * eps_pred + sigma_t * noise
+
+            actions_scaled = vae.vae_decoder(z_bld=z_t,
+                                            cond_feat=cond_feat,
+                                            grid_map_traj_T=None) 
+
+            if self.stationary_mask is not None:
+                x_stationary = actions_scaled[self.stationary_mask]
+                x_stationary = self.descale_traj(x_stationary, [4, 5])
+                x_stationary[...] = 0
+                x_stationary = self.scale_traj(x_stationary, [4, 5])
+                actions_scaled[self.stationary_mask] = x_stationary
+            
+  
+            z_t, _ = vae.vae_encoder(actions_scaled) 
+
+
+        curr_state = torch.cat([batch['center_curr_positions'],
+                                batch['center_curr_speeds'].unsqueeze(-1),
+                                batch['center_curr_yaws'].unsqueeze(-1)], dim=-1)
+
+
+ 
+ 
+        traj = self.convert_action_to_state_and_action(actions_scaled, curr_state,True,True)  # [B, T, 4]
+        traj = traj[..., [0, 1, 3]] #(x,y,yaw)
+
+        pred_positions = traj[..., :2]
+        pred_yaws = traj[..., 2:3]
+
+        out_dict = {
+            "trajectories": traj,
+            "predictions": {"positions": pred_positions, "yaws": pred_yaws},
+        }
+        return out_dict
+    

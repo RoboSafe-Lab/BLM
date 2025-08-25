@@ -1,10 +1,10 @@
 {
-    "results_dir": "safety_critical_trained_models/k4",
-    "name": "cw_ori",
+    "results_dir": "safety_critical_trained_models/linux",
+    "name": "rollout_results",
     "dataset_path": "../nuscenes",
-    "eval_class": "PPO_Diffuser",
+    "eval_class": "PPO_Latent_Diffuser",
     "seed": 42,
-    "num_scenes_per_batch": 2,
+    "num_scenes_per_batch": 1,
     
     "num_episode_repeats": 1,
     "start_frame_index_each_episode": null,
@@ -21,7 +21,7 @@
         "num_sim_per_scene": 1,
         "future_sec": 5.2,
         "history_sec": 3.0,
-        "eval_scenes": [11,12,13],
+        "eval_scenes": [17,18,19],
         "num_simulation_steps": 100,
         "n_step_action": 5
         
@@ -29,12 +29,12 @@
     
     "ckpt": {
         "policy": {
-            "ckpt_dir": "safety_critical_trained_models/k4",
-            "ckpt_key": "K4.ckpt"
+            "ckpt_dir": "safety_critical_trained_models/linux",
+            "ckpt_key": "iter140000.ckpt"
         },
         "planner": {
-            "ckpt_dir": "safety_critical_trained_models/k4",
-            "ckpt_key": "K4.ckpt"
+            "ckpt_dir": "safety_critical_trained_models/linux",
+            "ckpt_key": "iter140000.ckpt"
         },
         "predictor": {
             "ckpt_dir": null,
