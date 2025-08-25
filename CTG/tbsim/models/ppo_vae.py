@@ -326,15 +326,12 @@ class PPO_VAE(nn.Module):
                                 batch['center_curr_speeds'].unsqueeze(-1),
                                 batch['center_curr_yaws'].unsqueeze(-1)], dim=-1)
 
-        traj = self.convert_action_to_state_and_action(x_hat, curr_state,True,True)
-
-
-
+        traj = self.convert_action_to_state_and_action(x_hat, curr_state,scaled_input=True,descaled_output=True)
+        pred_pos = traj[...,:2]  #(B,T,2)
+        gt_pos = batch['center_fut_positions'] #(B,T,2)
         mask = batch['center_fut_availabilities'].unsqueeze(-1)
-        mse_elem = F.mse_loss(traj, x, reduction='none')  
-        mse_masked = mse_elem * mask 
-        denom = (mask.sum() * x.size(-1)).clamp_min(1.0)                       # 防 0
-        recon = mse_masked.sum() / denom
+        
+        recon = (((pred_pos - gt_pos) ** 2) * mask).sum() / (mask.sum() * pred_pos.size(-1)).clamp_min(1.0)
 
         kl = (-0.5 * (1 + logvar - mu.pow(2) - logvar.exp())).mean()
         kl = torch.clamp(kl, min=0.005)
@@ -356,7 +353,7 @@ class PPO_VAE(nn.Module):
             dyn_model=self.dyn,
             initial_states=curr_states,
             actions=x_out,
-            step_time=self.dt,
+            step_time=0.1,
             mode='parallel'
         )
 
