@@ -79,7 +79,7 @@ def algo_factory(config: ExperimentConfig, modality_shapes: dict):
         algo = SceneDiffuserTrafficModel(algo_config=algo_config, modality_shapes=modality_shapes, registered_name=config.registered_name)
     elif algo_name == "diffuser_ppo":
         algo = PPO_Diffusion_Trainer(algo_config=algo_config, modality_shapes=modality_shapes, registered_name=config.registered_name)
-    elif algo_name == "vae_diffusion":
+    elif algo_name == "latent_vae":
         algo = TrajectoryVAE(algo_config=algo_config, modality_shapes=modality_shapes, registered_name=config.registered_name)
     elif algo_name == "latent_diffusion":
         algo = LatentDiffusion(algo_config=algo_config, modality_shapes=modality_shapes)

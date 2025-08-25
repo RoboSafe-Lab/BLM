@@ -4,7 +4,7 @@
       "logging": {
         "terminal_output_to_txt": true,
         "log_wandb": true,
-        "wandb_project_name": "Latent_Diffusion",
+        "wandb_project_name": "VAE",
         "log_every_n_steps": 10,
         "flush_every_n_steps": 100
       },
@@ -123,7 +123,7 @@
 
 
 
-      "name": "latent_diffusion",  
+      "name": "latent_vae",  
    
     
       "disable_control_on_stationary": "any_speed",
@@ -145,7 +145,7 @@
         "vae_dec_channels": 64,
         "vae_output_dim": 2,
         "beta_max":10,
-        "beta_warmup_steps": 10000
+        "beta_warmup_steps": 30000
 
         },
         "latent_diffusion":{
@@ -156,7 +156,7 @@
 
       },
     
-    "name": "linux", 
+    "name": "vae", 
     "root_dir": "safety_critical_trained_models/",
     "seed": 42
 
