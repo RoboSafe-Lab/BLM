@@ -30,7 +30,7 @@
         "enabled": true,
         "batch_size": 64,
         "num_data_workers": 16,
-        "every_n_steps": 2000,
+        "every_n_steps": 1000,
         "num_steps_per_epoch": 50
       },
 
@@ -156,7 +156,7 @@
 
       },
     
-    "name": "vae_linux", 
+    "name": "vae_cw", 
     "root_dir": "safety_critical_trained_models/",
     "seed": 42
 
