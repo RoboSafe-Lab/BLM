@@ -99,6 +99,7 @@ def main(cfg, auto_remove_exp_dir=False, debug=False):
             name=cfg.name, 
             project=cfg.train.logging.wandb_project_name,
             log_model=True,
+        
         )
         # record the entire config on wandb
         logger.experiment.config.update(cfg.to_dict())
@@ -128,7 +129,9 @@ def main(cfg, auto_remove_exp_dir=False, debug=False):
 
     )
 
+  
     trainer.fit(model=model, datamodule=datamodule)
+
 
 
 if __name__ == "__main__":

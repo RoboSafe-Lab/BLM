@@ -296,7 +296,7 @@ class PPO_VAE(nn.Module):
 
     def compute_loss(self, batch):
 
-        cond_feat, map_grid_feat = self.context_encoder(batch)
+        # cond_feat, map_grid_feat = self.context_encoder(batch)
         
         center_fut_action = torch.cat([batch['center_fut_acc_lons'].unsqueeze(-1),
                                 batch['center_fut_yaw_rates'].unsqueeze(-1)],dim=-1)
@@ -308,21 +308,30 @@ class PPO_VAE(nn.Module):
         eps = torch.randn_like(std)
         z = mu + std * eps   
 
-        grid_map_traj_T = self.query_map_feats(
-            batch['center_fut_positions'].detach(),   # 训练时用 GT 位置
-            map_grid_feat,
-            batch['raster_from_center'])
-        p_drop = 0.3
-        if self.training and torch.rand(1, device=cond_feat.device) < p_drop:
-            cond_feat = None
+        # grid_map_traj_T = self.query_map_feats(
+        #     batch['center_fut_positions'].detach(),   # 训练时用 GT 位置
+        #     map_grid_feat,
+        #     batch['raster_from_center'])
+        # p_drop = 0.3
+        # if self.training and torch.rand(1, device=cond_feat.device) < p_drop:
+        #     cond_feat = None
             
         x_hat = self.vae_decoder(
             z_bld=z,
-            cond_feat=cond_feat,
-            grid_map_traj_T=grid_map_traj_T
+            cond_feat=None,
+            grid_map_traj_T=None
         )
+
+        curr_state = torch.cat([batch['center_curr_positions'],
+                                batch['center_curr_speeds'].unsqueeze(-1),
+                                batch['center_curr_yaws'].unsqueeze(-1)], dim=-1)
+
+        traj = self.convert_action_to_state_and_action(x_hat, curr_state,True,True)
+
+
+
         mask = batch['center_fut_availabilities'].unsqueeze(-1)
-        mse_elem = F.mse_loss(x_hat, x, reduction='none')  
+        mse_elem = F.mse_loss(traj, x, reduction='none')  
         mse_masked = mse_elem * mask 
         denom = (mask.sum() * x.size(-1)).clamp_min(1.0)                       # 防 0
         recon = mse_masked.sum() / denom
@@ -334,4 +343,27 @@ class PPO_VAE(nn.Module):
     
         
 
-    
+    def convert_action_to_state_and_action(self, x_out, curr_states, scaled_input=True, descaled_output=False):
+ 
+        dim = len(x_out.shape)
+        if dim == 4:
+            B, N, T, _ = x_out.shape
+            x_out = TensorUtils.join_dimensions(x_out,0,2)
+
+        if scaled_input:
+            x_out = self.descale_traj(x_out, [4, 5])
+        x_out_state = unicyle_forward_dynamics(
+            dyn_model=self.dyn,
+            initial_states=curr_states,
+            actions=x_out,
+            step_time=self.dt,
+            mode='parallel'
+        )
+
+        x_out_all = torch.cat([x_out_state, x_out], dim=-1)
+        if scaled_input and not descaled_output:
+            x_out_all = self.scale_traj(x_out_all, [0, 1, 2, 3, 4, 5])
+
+        if dim == 4:
+            x_out_all = x_out_all.reshape([B, N, T, -1])
+        return x_out_all

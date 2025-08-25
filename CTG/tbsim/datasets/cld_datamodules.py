@@ -118,10 +118,10 @@ class CLDDataModule(pl.LightningDataModule):
 
         )
         print(kwargs)
-        self.train_dataset = UnifiedDataset(**kwargs)
+        self.train_dataset = FilteredUnifiedDataset(**kwargs)
 
         kwargs["desired_data"] = data_cfg.trajdata_source_valid
-        self.valid_dataset = UnifiedDataset(**kwargs)
+        self.valid_dataset = FilteredUnifiedDataset(**kwargs)
 
         gc.collect()
 

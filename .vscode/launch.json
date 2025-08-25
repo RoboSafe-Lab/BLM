@@ -78,6 +78,13 @@
              
           
             ]
+        },
+        {
+            "name": "calculate",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/CTG/scripts/calculate.py",
+            "console": "integratedTerminal",
         }
     ]
 }
