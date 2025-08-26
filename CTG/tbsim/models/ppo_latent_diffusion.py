@@ -353,41 +353,26 @@ class PPO_LatentDiffusion(nn.Module):
 
             z_t = mix_dist.sample()
 
-            with torch.no_grad():
-                x_t = vae.vae_decoder(z_bld=z_t,
-                                    cond_feat=None,
-                                    grid_map_traj_T=None) 
+        with torch.no_grad():
+            x_t = vae.vae_decoder(z_bld=z_t,
+                                cond_feat=None,
+                                grid_map_traj_T=None) 
 
-                if self.stationary_mask is not None:
-                    x_stationary = x_t[self.stationary_mask]
-                    x_stationary = self.descale_traj(x_stationary, [4, 5])
-                    x_stationary[...] = 0
-                    x_stationary = self.scale_traj(x_stationary, [4, 5])
-                    x_t[self.stationary_mask] = x_stationary
+            if self.stationary_mask is not None:
+                x_stationary = x_t[self.stationary_mask]
+                x_stationary = self.descale_traj(x_stationary, [4, 5])
+                x_stationary[...] = 0
+                x_stationary = self.scale_traj(x_stationary, [4, 5])
+                x_t[self.stationary_mask] = x_stationary
 
                 
-                z_t, _ = vae.vae_encoder(x_t) 
-                
-                
-
-
-            
-  
-
-
-
         curr_state = torch.cat([batch['center_curr_positions'],
                                 batch['center_curr_speeds'].unsqueeze(-1),
                                 batch['center_curr_yaws'].unsqueeze(-1)], dim=-1)
 
 
-        actions_scaled = vae.vae_decoder(z_bld=z_t,
-                                        cond_feat=None,
-                                        grid_map_traj_T=None) 
-
-
- 
-        traj = self.convert_action_to_state_and_action(actions_scaled, curr_state,True,True)  # [B, T, 4]
+    
+        traj = self.convert_action_to_state_and_action(x_t, curr_state,True,True)  # [B, T, 4]
         traj = traj[..., [0, 1, 3]] #(x,y,yaw)
 
         pred_positions = traj[..., :2]
@@ -402,7 +387,7 @@ class PPO_LatentDiffusion(nn.Module):
     def mix_dist(self,x_t, pi, mu, sigma_gmm, t_tensor, t_next_tensor, eta):
  
         
-        alpha_t = extract(self.alphas_cumprod, t_tensor, x_t.shape)
+        alpha_t    = extract(self.alphas_cumprod, t_tensor,      x_t.shape)
         alpha_next = extract(self.alphas_cumprod, t_next_tensor, x_t.shape)
         
         sqrt_alpha_t = torch.sqrt(alpha_t).unsqueeze(-1)

@@ -1,6 +1,6 @@
 {
     "results_dir": "safety_critical_trained_models/",
-    "name": "latent_dm",
+    "name": "",
     "dataset_path": "../nuscenes",
     "eval_class": "PPO_Latent_Diffuser",
     "seed": 42,
@@ -21,7 +21,7 @@
         "num_sim_per_scene": 1,
         "future_sec": 5.2,
         "history_sec": 3.0,
-        "eval_scenes": [23,24,25,26],
+        "eval_scenes": [27,28,29,30],
         "num_simulation_steps": 200,
         "n_step_action": 5
         
@@ -76,7 +76,7 @@
         "wandb_id": null,
         
         "episodes_per_collect": 100,
-        "ppo_epochs": 100,
+        "ppo_epochs": 300,
         "update_per_collect": 10,
         "mini_batch_size": 128,
         "test_episodes": 30

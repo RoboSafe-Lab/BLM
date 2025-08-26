@@ -14,9 +14,9 @@ from tianshou.policy import PPOPolicy
 from tianshou.data import Collector,ReplayBuffer
 import wandb
 from tianshou.trainer import onpolicy_trainer 
-from tbsim.models.ppo_actor_critic import DiffusionBackbone,DiffusionActor,DiffusionCritic
+from tbsim.models.ppo_latent_actor_critic import DiffusionBackbone,DiffusionActor,DiffusionCritic
 from tbsim.datasets.factory import datamodule_factory
-from tbsim.models.ppo_env import PPOEnv,preprocess_fn
+from tbsim.models.ppo_latent_env import PPOEnv,preprocess_fn
 from tianshou.utils import WandbLogger
 from torch.utils.tensorboard import SummaryWriter
 from torch.distributions import Categorical, Normal, Independent, MixtureSameFamily
@@ -113,7 +113,7 @@ def build_save_best_fn(save_dir, actor, critic, eval_cfg, wandb_run=None):
 
     def save_best_fn(ts_policy):
         # 1) 保存策略
-        policy_model = actor.backbone.ppo
+        policy_model = actor.backbone.latent_diffusion
         ckpt = _lightning_policy_ckpt(policy_model)
         torch.save(ckpt, policy_best)
         print(f"[PPO] saved policy ckpt -> {policy_best}")
@@ -206,9 +206,10 @@ def ppo_training(eval_cfg):
     # determines cfg for rasterizing agents
     set_global_trajdata_batch_raster_cfg(exp_config.env.rasterizer)
     
-    policy_model = policy.model.nets['policy']
+    latent_diffusion = policy.model.nets['policy']
+    vae = policy.model._externals["vae"]
 
-    backbone = DiffusionBackbone(policy_model)
+    backbone = DiffusionBackbone(latent_diffusion,vae)
     actor  = DiffusionActor(backbone,n_diffusion_steps=int(exp_config.algo.n_diffusion_steps)).to(device)
     critic = DiffusionCritic(backbone,n_diffusion_steps=int(exp_config.algo.n_diffusion_steps),
                                         actor_hidden=exp_config.algo.diffusion_hidden_dim).to(device)
@@ -231,11 +232,11 @@ def ppo_training(eval_cfg):
     transitions_per_episode  = eval_cfg.ppo["episodes_per_collect"]  *  exp_config.algo.ddim_steps #40*50=2000
 
     train_collector = Collector(policy,
-                                PPOEnv(exp_config.algo, datamodule.train_dataset, policy_model,exp_config.algo.ddim_steps), 
+                                PPOEnv(exp_config.algo, datamodule.train_dataset, latent_diffusion,vae,exp_config.algo.ddim_steps), 
                                 buffer= ReplayBuffer(size=transitions_per_episode),
                                 preprocess_fn=preprocess_fn)
     test_collector = Collector(policy,
-                                PPOEnv(exp_config.algo, datamodule.valid_dataset, policy_model,exp_config.algo.ddim_steps),
+                                PPOEnv(exp_config.algo, datamodule.valid_dataset, latent_diffusion,vae,exp_config.algo.ddim_steps),
                                 preprocess_fn=preprocess_fn)
 
   
