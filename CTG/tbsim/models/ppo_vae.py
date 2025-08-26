@@ -364,3 +364,43 @@ class PPO_VAE(nn.Module):
         if dim == 4:
             x_out_all = x_out_all.reshape([B, N, T, -1])
         return x_out_all
+
+
+    def forward(self, obs, stationary_mask, global_t=0):
+        if global_t == 0:
+            self.stationary_mask = stationary_mask
+        return self.forward_vae(obs)
+
+    def forward_vae(self, batch):
+        center_fut_action = torch.cat([batch['center_fut_acc_lons'].unsqueeze(-1),
+                                batch['center_fut_yaw_rates'].unsqueeze(-1)],dim=-1)
+        
+        x = self.scale_traj(center_fut_action)
+
+        mu, logvar = self.vae_encoder(x) 
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        z = mu + std * eps               
+        x_hat = self.vae_decoder(
+            z_bld=z,
+            cond_feat=None,
+            grid_map_traj_T=None
+        )
+
+        curr_state = torch.cat([batch['center_curr_positions'],
+                                batch['center_curr_speeds'].unsqueeze(-1),
+                                batch['center_curr_yaws'].unsqueeze(-1)], dim=-1)
+
+        traj = self.convert_action_to_state_and_action(x_hat, curr_state,scaled_input=True,descaled_output=True)
+        traj = traj[..., [0, 1, 3]] #(x,y,yaw)
+
+        pred_positions = traj[..., :2]
+        pred_yaws = traj[..., 2:3]
+
+        out_dict = {
+            "trajectories": traj,
+            "predictions": {"positions": pred_positions, "yaws": pred_yaws},
+        }
+        return out_dict
+    
+    

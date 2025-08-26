@@ -14,6 +14,9 @@ class TrajectoryVAE(pl.LightningModule):
         super().__init__()
         self.algo_config = algo_config
         self.nets = nn.ModuleDict()
+        self.disable_control_on_stationary = algo_config.disable_control_on_stationary
+        self.moving_speed_th = algo_config.moving_speed_th
+        
         self.nets['policy'] = PPO_VAE(
             map_encoder_model_arch=algo_config.map_encoder_model_arch,
             input_image_shape = modality_shapes['image'],
@@ -97,3 +100,33 @@ class TrajectoryVAE(pl.LightningModule):
         """记录当前学习率"""
         current_lr = self.trainer.optimizers[0].param_groups[0]['lr']
         self.log('learning_rate', current_lr)
+
+    def forward(self,obs,global_t):
+        if global_t ==0:
+            self.stationary_mask = get_stationary_mask(obs, self.disable_control_on_stationary, self.moving_speed_th)
+            B = self.stationary_mask.shape[0]
+            stationary_mask_expand =  self.stationary_mask
+        else:
+            stationary_mask_expand = None
+
+        return self.nets['policy'](obs, stationary_mask=stationary_mask_expand, global_t=global_t)
+
+    def get_action(self, obs_torch, **kwargs):
+        # from tbsim.utils.safety_critical_fig_vis import plot_trajdata_batch
+        # plot_trajdata_batch(obs_torch,None)
+        preds = self(obs_torch, global_t=kwargs['step_index'])["predictions"]
+        preds_positions = preds["positions"]
+        # 
+        preds_yaws = preds["yaws"]
+
+        info = dict(
+            action_samples=Action(
+                positions=preds_positions,
+                yaws=preds_yaws
+            ).to_dict(),
+        )
+        action = Action(
+            positions=preds_positions,
+            yaws=preds_yaws
+        )
+        return action, info

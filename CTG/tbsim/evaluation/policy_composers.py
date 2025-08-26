@@ -13,6 +13,7 @@ from tbsim.algos.algos import (
     SceneDiffuserTrafficModel,
 )
 from tbsim.algos.safety_critical_diffusion import PPO_Diffusion_Trainer
+from tbsim.algos.vae_diffusion import TrajectoryVAE
 from tbsim.algos.latent_diffusion import LatentDiffusion
 from tbsim.utils.batch_utils import batch_utils
 from tbsim.algos.multiagent_algos import MATrafficModel, HierarchicalAgentAwareModel
@@ -955,6 +956,72 @@ class PPO_Latent_Diffuser(PolicyComposer):
             planner_cfg = get_experiment_config_from_file(planner_config_path)
 
             planner = LatentDiffusion.load_from_checkpoint(
+                planner_ckpt_path,
+                algo_config=planner_cfg.algo,
+                modality_shapes=dict(image=(planner_cfg.env.rasterizer.num_sem_layers,
+                                            planner_cfg.env.rasterizer.raster_size, 
+                                            planner_cfg.env.rasterizer.raster_size)),
+                registered_name=planner_cfg["registered_name"],
+            ).to(self.device).eval()
+            planner_cfg = planner_cfg.clone()
+        planner = PolicyWrapper.wrap_controller(
+            planner,
+            num_action_samples=self.eval_config.policy.num_action_samples,
+            class_free_guide_w=self.eval_config.policy.class_free_guide_w,
+            guide_as_filter_only=self.eval_config.policy.guide_as_filter_only,
+            guide_with_gt=self.eval_config.policy.guide_with_gt,
+            guide_clean=self.eval_config.policy.guide_clean,
+        )
+        return planner, planner_cfg
+
+class PPO_VAE(PolicyComposer):
+ 
+    def get_policy(self, policy=None):
+        if policy is not None:
+            assert isinstance(policy, TrajectoryVAE)
+            policy_cfg = None
+        else:
+            policy_ckpt_path, policy_config_path = get_checkpoint(
+                ngc_job_id=self.eval_config.ckpt.policy.ngc_job_id,
+                ckpt_key=self.eval_config.ckpt.policy.ckpt_key,
+                ckpt_dir=self.eval_config.ckpt.policy.ckpt_dir,
+                ckpt_root_dir=self.ckpt_root_dir,
+            )
+            policy_cfg = get_experiment_config_from_file(policy_config_path)
+
+            policy = TrajectoryVAE.load_from_checkpoint(
+                policy_ckpt_path,
+                algo_config=policy_cfg.algo,
+                modality_shapes=dict(image=(policy_cfg.env.rasterizer.num_sem_layers,
+                                            policy_cfg.env.rasterizer.raster_size, 
+                                            policy_cfg.env.rasterizer.raster_size)),
+                registered_name=policy_cfg["registered_name"],
+            ).to(self.device).eval()
+            policy_cfg = policy_cfg.clone()
+        policy = PolicyWrapper.wrap_controller(
+            policy,
+            num_action_samples=self.eval_config.policy.num_action_samples,
+            class_free_guide_w=self.eval_config.policy.class_free_guide_w,
+            guide_as_filter_only=self.eval_config.policy.guide_as_filter_only,
+            guide_with_gt=self.eval_config.policy.guide_with_gt,
+            guide_clean=self.eval_config.policy.guide_clean,
+        )
+        return policy, policy_cfg
+
+    def get_planner(self, planner=None):
+        if planner is not None:
+            assert isinstance(planner, TrajectoryVAE)
+            planner_cfg = None
+        else:
+            planner_ckpt_path, planner_config_path = get_checkpoint(
+                ngc_job_id=self.eval_config.ckpt.planner.ngc_job_id,
+                ckpt_key=self.eval_config.ckpt.planner.ckpt_key,
+                ckpt_dir=self.eval_config.ckpt.planner.ckpt_dir,
+                ckpt_root_dir=self.ckpt_root_dir,
+            )
+            planner_cfg = get_experiment_config_from_file(planner_config_path)
+
+            planner = TrajectoryVAE.load_from_checkpoint(
                 planner_ckpt_path,
                 algo_config=planner_cfg.algo,
                 modality_shapes=dict(image=(planner_cfg.env.rasterizer.num_sem_layers,

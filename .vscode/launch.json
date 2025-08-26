@@ -46,7 +46,9 @@
                 "simulation_config.json",
                 "--env",
                 "trajdata",
-                "--render"
+                "--render",
+                "--render_px_per_m",
+                "3.0"
             ]
         },
         {

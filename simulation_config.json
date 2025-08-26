@@ -1,8 +1,8 @@
 {
-    "results_dir": "safety_critical_trained_models/linux",
-    "name": "rollout_results",
+    "results_dir": "safety_critical_trained_models/",
+    "name": "vae",
     "dataset_path": "../nuscenes",
-    "eval_class": "PPO_Latent_Diffuser",
+    "eval_class": "PPO_VAE",
     "seed": 42,
     "num_scenes_per_batch": 1,
     
@@ -21,7 +21,7 @@
         "num_sim_per_scene": 1,
         "future_sec": 5.2,
         "history_sec": 3.0,
-        "eval_scenes": [17,18,19],
+        "eval_scenes": [20,21,22],
         "num_simulation_steps": 100,
         "n_step_action": 5
         
@@ -29,12 +29,12 @@
     
     "ckpt": {
         "policy": {
-            "ckpt_dir": "safety_critical_trained_models/linux",
-            "ckpt_key": "iter140000.ckpt"
+            "ckpt_dir": "safety_critical_trained_models/vae",
+            "ckpt_key": "vae.ckpt"
         },
         "planner": {
-            "ckpt_dir": "safety_critical_trained_models/linux",
-            "ckpt_key": "iter140000.ckpt"
+            "ckpt_dir": "safety_critical_trained_models/vae",
+            "ckpt_key": "vae.ckpt"
         },
         "predictor": {
             "ckpt_dir": null,
