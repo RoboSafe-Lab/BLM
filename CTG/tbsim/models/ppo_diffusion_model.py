@@ -60,9 +60,10 @@ class ConvCrossAttnDiffuser(nn.Module):
                 dilations=(1,2,4),
                 n_heads=4,
                 grid_map_dim=32,
-                ):
+                grid_map_traj_dim=32,
+                mix_gauss = 3):
         super().__init__()
-       
+        self.out_dim = out_dim
 
         # 1) 时序特征提取
         self.temporal_conv = ResidualDilatedConv1d(
@@ -112,11 +113,18 @@ class ConvCrossAttnDiffuser(nn.Module):
         
         # 4) grid_map_traj Cross-Attention
         self.register_buffer("grid_pos_cache", None, persistent=False)
-
+        # self.grid_traj_proj = nn.Linear(grid_map_traj_dim, hidden_dim)
+        # self.grid_traj_norm = nn.LayerNorm(hidden_dim)
+        # self.traj_pos_emb = nn.Embedding(512, hidden_dim)  # 可选：显式时间步编码
         
 
         # 5) 输出头
-        self.out_dim = nn.Linear(hidden_dim, out_dim)
+        self.mix_gauss = mix_gauss
+
+        self.logits_pi = nn.Conv1d(hidden_dim, mix_gauss, kernel_size=1)
+        self.logits_mu = nn.Conv1d(hidden_dim, out_dim * mix_gauss, kernel_size=1)
+        self.logits_sigma = nn.Conv1d(hidden_dim, out_dim * mix_gauss, kernel_size=1)
+        nn.init.constant_(self.logits_sigma.bias, -1.0)
 
     def _get_pos_emb(self, B, Hm, Wm, device):
         if (self.grid_pos_cache is None) or (self.grid_pos_cache.shape[1] != Hm*Wm):
@@ -131,15 +139,17 @@ class ConvCrossAttnDiffuser(nn.Module):
 
     def forward(self, x, cond_feat, t, grid_map_feat):
         h = self.get_backbone(x, cond_feat, t, grid_map_feat)
-        out = self.out_dim(h)
-        return out
+        # 5) 输出
+        
+        raw_logits_pi, mu_raw, log_sigma_raw = self.apply_mix_gauss(h)
+        return raw_logits_pi, mu_raw, log_sigma_raw
     
     def get_backbone(self,x,cond_feat,t,grid_map_feat):
         h = self.apply_conv(x)      # [B, T, H]
         h = self.apply_time(h, t)   # [B, T, H]
         h = self.apply_cond(h, cond_feat)  # [B, T, H]
         h = self.apply_grid_map(h, grid_map_feat)  # [B, T, H]
-
+        # h = self.apply_grid_traj(h, grid_map_traj)  # [B, T, H]
         return h
 
     def apply_conv(self,x):
@@ -174,18 +184,26 @@ class ConvCrossAttnDiffuser(nn.Module):
         h = h + torch.sigmoid(self.grid_map_gate) * map_attn_out
         return self.grid_map_norm(h)
     
+    def apply_grid_traj(self, h, grid_map_traj):
+        m = self.grid_traj_proj(grid_map_traj)     # [B, T, H]
+        T = h.size(1)
+        step_idx = torch.arange(T, device=h.device)
+        h  = h + self.traj_pos_emb(step_idx).unsqueeze(0)
+        h = h + m
+        return self.grid_traj_norm(h)
 
 
+    def apply_mix_gauss(self, h):
         B, T, H = h.shape
         h = h.permute(0,2,1)
         raw_logits_pi = self.logits_pi(h).permute(0,2,1).view(B,T,self.mix_gauss)
         
-        mu_raw = self.logits_mu(h).permute(0,2,1)\
-        .view(B,T,self.mix_gauss,self.out_dim)
+        mu_raw = self.logits_mu(h).permute(0,2,1).view(B,T,self.mix_gauss,self.out_dim)
 
-        log_sigma_raw = self.logits_sigma(h).permute(0,2,1)\
-            .view(B,T,self.mix_gauss,self.out_dim)
+        raw = self.logits_sigma(h).permute(0,2,1).view(B,T,self.mix_gauss,self.out_dim)
         
-        log_sigma_raw = torch.clamp(log_sigma_raw, min=-5, max=0)
+        sigma_floor = 0.1
+        sigma = F.softplus(raw) + sigma_floor
+        log_sigma_raw = torch.log(torch.clamp(sigma, min=1e-6))
         
         return raw_logits_pi, mu_raw, log_sigma_raw

@@ -55,6 +55,7 @@ class PPO_LatentDiffusion(nn.Module):
         diffusion_hidden_dim,
         dilations,
         num_heads,
+        num_Gaussian,
 
         dynamics_kwargs,
         n_timesteps,
@@ -99,6 +100,8 @@ class PPO_LatentDiffusion(nn.Module):
                                             dilations = dilations,
                                             n_heads = num_heads,
                                             grid_map_dim = grid_feature_dim,
+                                            grid_map_traj_dim = grid_feature_dim,
+                                            mix_gauss = num_Gaussian
                                             )
 
         self._dynamics_kwargs = dynamics_kwargs
@@ -249,16 +252,24 @@ class PPO_LatentDiffusion(nn.Module):
             z0 = mu + std * eps_post
     
         
-        B, L, d = z0.shape
-        t = torch.randint(0, self.n_timesteps, (B,), device=z0.device)
+ 
+        t = torch.randint(0, self.n_timesteps, (z0.shape[0],), device=z0.device)
         t_float = t.float() / (self.n_timesteps - 1)
     
         noise = torch.randn_like(z0)
         noised_action = self.q_sample(z0, t, noise)
 
-        pred_eps = self.model(noised_action, cond_feat,t_float,map_grid_feat)  
+        # map_grid_traj = self.query_map_feats(batch['center_fut_positions'],map_grid_feat,batch['raster_from_center'])#(B,T,32)
+
+        raw_logits_pi, mu_raw, log_sigma_raw = self.model(noised_action, cond_feat,t_float,map_grid_feat)  
      
-        return F.mse_loss(noise, pred_eps)
+        pi = F.softmax(raw_logits_pi, dim=-1)
+        sigma = torch.exp(log_sigma_raw)
+
+        gmm = MixtureSameFamily(Categorical(pi), Independent(Normal(mu_raw, sigma), 1))
+        logp = gmm.log_prob(z0)
+
+        return -logp.mean()
 
     def convert_action_to_state_and_action(self, x_out, curr_states, scaled_input=True, descaled_output=False):
  

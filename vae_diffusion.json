@@ -109,9 +109,9 @@
       "diffusion_hidden_dim":64,
       "dilations": [1,2,4,8],
       "num_heads":4,
-
+      "num_Gaussian":3,
     
-      "n_diffusion_steps": 100,
+      "n_diffusion_steps": 200,
 
       "Dynamics":{
         "max_steer": 0.25,  
@@ -123,7 +123,7 @@
 
 
 
-      "name": "latent_vae",  
+      "name": "latent_diffusion",  
    
     
       "disable_control_on_stationary": "any_speed",
@@ -148,10 +148,8 @@
         "beta_warmup_steps": 30000
 
         },
-        "latent_diffusion":{
-           
-        },
-        "vae_ckpt_path": "safety_critical_trained_models/vae/checkpoints/iter15000.ckpt"
+
+        "vae_ckpt_path": "safety_critical_trained_models/vae/checkpoints/vae.ckpt"
     
 
       },

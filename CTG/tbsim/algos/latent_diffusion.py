@@ -23,7 +23,10 @@ class LatentDiffusion(pl.LightningModule):
             modality_shapes=modality_shapes,
             registered_name=None
         ).nets['policy']
+        
+        print(f"*******************************************")
         print(f"vae loaded from {algo_config.vae_ckpt_path}")
+        print(f"*******************************************")
 
         self._externals = {"vae": vae}
         self.nets['policy'] = PPO_LatentDiffusion(
@@ -48,7 +51,7 @@ class LatentDiffusion(pl.LightningModule):
             diffusion_hidden_dim = algo_config.diffusion_hidden_dim,
             dilations = algo_config.dilations,
             num_heads = algo_config.num_heads,
-       
+            num_Gaussian = algo_config.num_Gaussian,
 
             dynamics_kwargs = algo_config.Dynamics,
             n_timesteps = algo_config.n_diffusion_steps,
