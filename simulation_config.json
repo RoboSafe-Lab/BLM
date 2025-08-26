@@ -1,8 +1,8 @@
 {
     "results_dir": "safety_critical_trained_models/",
-    "name": "vae",
+    "name": "latent_dm",
     "dataset_path": "../nuscenes",
-    "eval_class": "PPO_VAE",
+    "eval_class": "PPO_Latent_Diffuser",
     "seed": 42,
     "num_scenes_per_batch": 1,
     
@@ -21,20 +21,20 @@
         "num_sim_per_scene": 1,
         "future_sec": 5.2,
         "history_sec": 3.0,
-        "eval_scenes": [20,21,22],
-        "num_simulation_steps": 100,
+        "eval_scenes": [23,24,25,26],
+        "num_simulation_steps": 200,
         "n_step_action": 5
         
     },
     
     "ckpt": {
         "policy": {
-            "ckpt_dir": "safety_critical_trained_models/vae",
-            "ckpt_key": "vae.ckpt"
+            "ckpt_dir": "safety_critical_trained_models/latent_dm",
+            "ckpt_key": "latent_dm.ckpt"
         },
         "planner": {
-            "ckpt_dir": "safety_critical_trained_models/vae",
-            "ckpt_key": "vae.ckpt"
+            "ckpt_dir": "safety_critical_trained_models/latent_dm",
+            "ckpt_key": "latent_dm.ckpt"
         },
         "predictor": {
             "ckpt_dir": null,

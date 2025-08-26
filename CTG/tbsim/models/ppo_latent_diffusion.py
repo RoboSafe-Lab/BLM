@@ -343,37 +343,37 @@ class PPO_LatentDiffusion(nn.Module):
 
 
 
-            eps_pred = self.model(z_t, cond_feat, t_float, map_grid_feat)
+            logits_pi, mu, log_sigma = self.model(z_t, cond_feat,t_float,map_grid_feat)  
 
-            alpha_t    = extract(self.alphas_cumprod, t_tensor,      z_t.shape)
-            alpha_next = extract(self.alphas_cumprod, t_next_tensor, z_t.shape)
+            pi = F.softmax(logits_pi, dim=-1)
+
+            sigma = torch.exp(log_sigma)
+
+            mix_dist = self.mix_dist(z_t, pi, mu, sigma,t_tensor, t_next_tensor, eta)
+
+            z_t = mix_dist.sample()
+
+            with torch.no_grad():
+                x_t = vae.vae_decoder(z_bld=z_t,
+                                    cond_feat=None,
+                                    grid_map_traj_T=None) 
+
+                if self.stationary_mask is not None:
+                    x_stationary = x_t[self.stationary_mask]
+                    x_stationary = self.descale_traj(x_stationary, [4, 5])
+                    x_stationary[...] = 0
+                    x_stationary = self.scale_traj(x_stationary, [4, 5])
+                    x_t[self.stationary_mask] = x_stationary
+
                 
-            sqrt_alpha_t = torch.sqrt(alpha_t)
-            sqrt_one_minus_alpha_t = torch.sqrt((1 - alpha_t).clamp_min(1e-8))
-            
-            x0_pred = (z_t - sqrt_one_minus_alpha_t * eps_pred) / sqrt_alpha_t
-            
-            sigma_t = eta * torch.sqrt(
-                ((1 - alpha_t / alpha_next) * (1 - alpha_next) / (1 - alpha_t)).clamp_min(1e-8)
-            )
-            
-            dir_coeff = torch.sqrt((1. - alpha_next - sigma_t ** 2).clamp_min(1e-8))
-            noise = torch.randn_like(z_t)
-            z_t = torch.sqrt(alpha_next) * x0_pred + dir_coeff * eps_pred + sigma_t * noise
+                z_t, _ = vae.vae_encoder(x_t) 
+                
+                
 
-            actions_scaled = vae.vae_decoder(z_bld=z_t,
-                                            cond_feat=cond_feat,
-                                            grid_map_traj_T=None) 
 
-            if self.stationary_mask is not None:
-                x_stationary = actions_scaled[self.stationary_mask]
-                x_stationary = self.descale_traj(x_stationary, [4, 5])
-                x_stationary[...] = 0
-                x_stationary = self.scale_traj(x_stationary, [4, 5])
-                actions_scaled[self.stationary_mask] = x_stationary
             
   
-            z_t, _ = vae.vae_encoder(actions_scaled) 
+
 
 
         curr_state = torch.cat([batch['center_curr_positions'],
@@ -381,7 +381,11 @@ class PPO_LatentDiffusion(nn.Module):
                                 batch['center_curr_yaws'].unsqueeze(-1)], dim=-1)
 
 
- 
+        actions_scaled = vae.vae_decoder(z_bld=z_t,
+                                        cond_feat=None,
+                                        grid_map_traj_T=None) 
+
+
  
         traj = self.convert_action_to_state_and_action(actions_scaled, curr_state,True,True)  # [B, T, 4]
         traj = traj[..., [0, 1, 3]] #(x,y,yaw)
@@ -395,3 +399,43 @@ class PPO_LatentDiffusion(nn.Module):
         }
         return out_dict
     
+    def mix_dist(self,x_t, pi, mu, sigma_gmm, t_tensor, t_next_tensor, eta):
+ 
+        
+        alpha_t = extract(self.alphas_cumprod, t_tensor, x_t.shape)
+        alpha_next = extract(self.alphas_cumprod, t_next_tensor, x_t.shape)
+        
+        sqrt_alpha_t = torch.sqrt(alpha_t).unsqueeze(-1)
+        sqrt_one_minus_alpha_t = torch.sqrt((1 - alpha_t).clamp_min(1e-8)).unsqueeze(-1)
+        
+        # 计算eps_pred
+        eps_pred = (x_t.unsqueeze(2) - sqrt_alpha_t * mu) / sqrt_one_minus_alpha_t
+        
+        # DDIM方差
+        sigma_t = eta * torch.sqrt(
+            ((1 - alpha_t / alpha_next) * (1 - alpha_next) / (1 - alpha_t)).clamp_min(1e-8)
+        ).unsqueeze(-1)
+        
+        # 均值计算
+        mu_t = (
+            torch.sqrt(alpha_next).unsqueeze(-1) * mu
+            + torch.sqrt((1 - alpha_next).unsqueeze(-1) - sigma_t**2) * eps_pred
+        )
+        
+        if eta == 0:
+            # 确定性DDIM：每个分量都是确定性的
+            # 使用很小的方差来近似Dirac delta分布
+            min_sigma = 1e-8
+            sigma_combined = torch.full_like(mu_t, min_sigma)
+        else:
+            # 随机DDIM：组合GMM方差和DDIM方差
+            var_combined = alpha_next.unsqueeze(-1) * (sigma_gmm**2) + sigma_t**2
+            sigma_combined = torch.sqrt(var_combined)
+        
+        # 构造混合分布
+        comp_dist = Independent(Normal(mu_t, sigma_combined), 1)
+        mix_dist = MixtureSameFamily(
+            mixture_distribution=Categorical(pi),
+            component_distribution=comp_dist
+        )
+        return mix_dist
