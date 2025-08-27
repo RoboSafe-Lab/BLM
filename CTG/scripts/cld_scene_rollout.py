@@ -184,24 +184,7 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
 
         # aggregate stats from the same class of guidance within each scene
         #       this helps parse_scene_edit_results
-        guide_agg_dict = {}
-        pop_list = []
-        for k,v in stats.items():
-            if k.split('_')[0] == 'guide':
-                guide_name = '_'.join(k.split('_')[:-1])
-                guide_scene_tag = k.split('_')[-1][:2]
-                canon_name = guide_name + '_%sg0' % (guide_scene_tag)
-                if canon_name not in guide_agg_dict:
-                    guide_agg_dict[canon_name] = []
-                guide_agg_dict[canon_name].append(v)
-                # remove from stats
-                pop_list.append(k)
-        for k in pop_list:
-            stats.pop(k, None)
-        # average over all of the same guide stats in each scene
-        for k,v in guide_agg_dict.items():
-            scene_stats = np.stack(v, axis=0) # guide_per_scenes x num_scenes (all are nan except 1)
-            stats[k] = np.mean(scene_stats, axis=0)
+
 
         # aggregate metrics stats
         if result_stats is None:
@@ -256,8 +239,40 @@ def dump_episode_buffer(buffer, scene_index, start_frames, h5_path):
 
     for ei, si, scene_buffer in zip(start_frames, scene_index, buffer):
         for mk in scene_buffer:
+            data = scene_buffer[mk]
+            
+            # 处理字符串类型数据
+            if isinstance(data, (np.ndarray, list)):
+                if len(data) > 0:
+                    if isinstance(data, list):
+                        first_elem = data[0]
+                    else:
+                        first_elem = data
+                    
+                    # 对于字符串类型，转换为字节类型以便HDF5保存
+                    if hasattr(first_elem, 'dtype') and first_elem.dtype.kind in ['U', 'S']:
+                        # 将Unicode字符串转换为字节字符串
+                        if isinstance(data, list):
+                            converted_data = [elem.encode('utf-8') if isinstance(elem, str) else elem for elem in data]
+                        else:
+                            converted_data = np.char.encode(data, 'utf-8')
+                    else:
+                        converted_data = data
+                else:
+                    converted_data = data
+            else:
+                converted_data = data
+            
             h5key = "/{}_{}/{}".format(si, ei, mk)
-            h5_file.create_dataset(h5key, data=scene_buffer[mk])
+            try:
+                h5_file.create_dataset(h5key, data=converted_data)
+            except Exception as e:
+                print(f"Error saving key '{mk}' in scene {si}: {e}")
+                print(f"Data type: {type(converted_data)}")
+                if hasattr(converted_data, 'dtype'):
+                    print(f"Data dtype: {converted_data.dtype}")
+                continue
+    
     h5_file.close()
     print("scene {} written to {}".format(scene_index, h5_path))
 
@@ -523,7 +538,7 @@ if __name__ == "__main__":
     run_scene_editor(
         cfg,
         save_cfg=False,
-        data_to_disk=False,
+        data_to_disk=True,
         render_to_video=args.render,
         render_to_img=args.render_img,
         render_cfg=render_cfg,

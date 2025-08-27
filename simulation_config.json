@@ -1,10 +1,10 @@
 {
     "results_dir": "safety_critical_trained_models/",
-    "name": "",
+    "name": "ppo_latent_dm",
     "dataset_path": "../nuscenes",
     "eval_class": "PPO_Latent_Diffuser",
     "seed": 42,
-    "num_scenes_per_batch": 1,
+    "num_scenes_per_batch": 2,
     
     "num_episode_repeats": 1,
     "start_frame_index_each_episode": null,
@@ -21,20 +21,20 @@
         "num_sim_per_scene": 1,
         "future_sec": 5.2,
         "history_sec": 3.0,
-        "eval_scenes": [27,28,29,30],
-        "num_simulation_steps": 200,
+        "eval_scenes": [35,36],
+        "num_simulation_steps": 100,
         "n_step_action": 5
         
     },
     
     "ckpt": {
         "policy": {
-            "ckpt_dir": "safety_critical_trained_models/latent_dm",
-            "ckpt_key": "latent_dm.ckpt"
+            "ckpt_dir": "safety_critical_trained_models/",
+            "ckpt_key": "ppo_latent_dm.ckpt"
         },
         "planner": {
-            "ckpt_dir": "safety_critical_trained_models/latent_dm",
-            "ckpt_key": "latent_dm.ckpt"
+            "ckpt_dir": "safety_critical_trained_models/",
+            "ckpt_key": "ppo_latent_dm.ckpt"
         },
         "predictor": {
             "ckpt_dir": null,

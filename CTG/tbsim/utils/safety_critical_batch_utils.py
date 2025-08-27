@@ -285,7 +285,7 @@ def parse_node_centric(batch: dict):
         centroid=curr_pos,
         yaw=curr_yaw,
         curr_agent_state = curr_state,
-
+        curr_speed=center_curr_speed,
         agent_fut = batch['agent_fut'],
 
         extent=agent_hist_extent.max(dim=-2)[0] * extent_scale,

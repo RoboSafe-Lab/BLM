@@ -6,7 +6,7 @@ import torch.optim as optim
 import torch.nn as nn
 from tbsim.policies.common import Plan, Action
 from tbsim.utils.trajdata_utils import convert_scene_data_to_agent_coordinates,  add_scene_dim_to_agent_data, get_stationary_mask
-
+import torch
 from tbsim.models.ppo_latent_diffusion import PPO_LatentDiffusion
 from tbsim.algos.vae_diffusion import TrajectoryVAE
 class LatentDiffusion(pl.LightningModule):
@@ -125,19 +125,48 @@ class LatentDiffusion(pl.LightningModule):
         # from tbsim.utils.safety_critical_fig_vis import plot_trajdata_batch
         # plot_trajdata_batch(obs_torch,None)
         self._freeze_vae()
-        preds = self(obs_torch, global_t=kwargs['step_index'])["predictions"]
-        preds_positions = preds["positions"]
-        # 
-        preds_yaws = preds["yaws"]
 
+        pos_list, yaw_list = [], []
+        num_samples = 10
+        for _ in range(num_samples):
+            preds = self(obs_torch, global_t=kwargs['step_index'])["predictions"]
+            pos_list.append(preds["positions"])   # [A,T,2]
+            yaw_list.append(preds["yaws"]) 
+
+        samples_pos = torch.stack(pos_list, dim=1)  # [A,N,T,2]
+        samples_yaw = torch.stack(yaw_list, dim=1)  # [A,N,T,1]
+
+        idx = torch.randint(num_samples, (1,), device=samples_pos.device).item()
+
+        pos = samples_pos[:, idx, :, :]    # [A,T,2] 执行用
+        yaw = samples_yaw[:, idx, :, :]    # [A,T,1] 执行用
+        
+        
+
+
+        action = Action(positions=pos, yaws=yaw)
+
+        # 保存全部采样（用于 HDF5 + 可视化）；保持 [A,N,T,2/1]
         info = dict(
             action_samples=Action(
-                positions=preds_positions,
-                yaws=preds_yaws
-            ).to_dict(),
+                positions=samples_pos,
+                yaws=samples_yaw
+            ).to_dict()
         )
-        action = Action(
-            positions=preds_positions,
-            yaws=preds_yaws
-        )
+        return action, info
+        # preds_positions = preds["positions"]
+                
+        #         preds_yaws = preds["yaws"]
+        # action = Action(
+        #             positions=preds_positions,
+        #             yaws=preds_yaws
+        #         )#NOTE:这个是rollout执行的action
+
+        # info = dict(
+        #     action_samples=Action(
+        #         positions=preds_positions[:, None, :, :],
+        #         yaws=preds_yaws[:, None, :, :]
+        #     ).to_dict(),
+        # )
+        
         return action, info

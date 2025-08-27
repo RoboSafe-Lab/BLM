@@ -845,6 +845,30 @@ class EnvSplitUnifiedSimulation(EnvUnifiedSimulation):
         
 
 class PPOEnvSplitUnifiedSimulation(EnvSplitUnifiedSimulation):
+    def reset(self, scene_indices: List = None, start_frame_index = None):
+        scenes_valid = super(PPOEnvSplitUnifiedSimulation,self).reset(scene_indices,start_frame_index)
+        obs_keys_to_log = [
+            "centroid",
+            "yaw",
+            "extent",
+            "world_from_agent",
+            "scene_index",
+            "track_id",
+            "map_names",
+            "curr_speed",
+            "drivable_map",
+            "center_fut_positions",
+            "center_from_raster"
+        ]
+        info_keys_to_log = [
+            "action_samples",
+            "diffusion_steps", # memory intensive
+            "attn_weights",
+        ]
+        self.logger = RolloutLogger(obs_keys=obs_keys_to_log,
+                                    info_keys=info_keys_to_log, save_action_samples=True)
+        self._cached_raw_observation = None
+        return scenes_valid
     def _disable_offroad_agents(self, scene):
         obs = scene.get_obs()
         obs = parse_batch(obs)
@@ -948,7 +972,7 @@ class PPOEnvSplitUnifiedSimulation(EnvSplitUnifiedSimulation):
         keys_to_take = [ 'drivable_map', 'center_fut_positions','map_names', \
              'center_fut_yaws', 'center_fut_availabilities', 'center_hist_positions', 'center_hist_yaws', 'center_hist_availabilities',\
              'center_curr_speeds', 'centroid', 'yaw',  'extent', 'raster_from_center', 'center_from_raster',\
-             'raster_from_world', 'center_from_world', 'world_from_agent', 'scene_index', 'track_id']
+             'raster_from_world', 'center_from_world', 'world_from_agent', 'scene_index', 'track_id','curr_speed']
         obs_selected = {k:v for k,v in obs.items() if k in keys_to_take}
         if split_ego:
             ego_mask = [name=="ego" for name in self.current_agent_names]
