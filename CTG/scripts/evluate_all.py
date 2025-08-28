@@ -7,7 +7,7 @@ import numpy as np
 from scipy.stats import entropy
 from sklearn.neighbors import KernelDensity
 
-from scripts.reconstruction_helper import ReconstructionHelper
+# from scripts.reconstruction_helper import ReconstructionHelper
 
 
 def calculate_jsd_kde(gt_data: np.ndarray, sim_data: np.ndarray, n_points: int = 1000,
@@ -60,13 +60,13 @@ def calculate_fdd_for_endpoints(endpoints):
     return fdd
 
 
-def load_dataset(results_dir):
-    helper = ReconstructionHelper(results_dir)
-    env, _, _ = helper.rebuild_environment()
-    dataset = env.dataset
-    cache_path, CacheClass = dataset.cache_path, dataset.cache_class
-    scene_name_to_gt_map = {scene.name: scene for scene in dataset.scenes()}
-    return scene_name_to_gt_map, cache_path, CacheClass
+# def load_dataset(results_dir):
+#     helper = ReconstructionHelper(results_dir)
+#     env, _, _ = helper.rebuild_environment()
+#     dataset = env.dataset
+#     cache_path, CacheClass = dataset.cache_path, dataset.cache_class
+#     scene_name_to_gt_map = {scene.name: scene for scene in dataset.scenes()}
+#     return scene_name_to_gt_map, cache_path, CacheClass
 
 
 def caculate_JSD(sim_vel_agent, agent_gt_df, dt):
@@ -593,20 +593,20 @@ if __name__ == "__main__":
     cjsd = True
     cfdd = True
 
-    results_dir = "/home/visier/safety-critical/safety_critical_trained_models"
+    results_dir = "/home/visier/safety-critical/safety_critical_trained_models/ppo_latent_dm"
     output_csv = f"{results_dir}/evaluation_results.csv"
 
-    if cjsd:
-        scene_name_to_gt_map, cache_path, CacheClass = load_dataset(results_dir)
+    # if cjsd:
+    #     scene_name_to_gt_map, cache_path, CacheClass = load_dataset(results_dir)
 
     # 存储所有场景结果的列表
     results_list = []
 
-    agents_data_dir = f"{results_dir}/agent_data_copy.json"
-    with open(agents_data_dir) as f:
-        agent_data = json.load(f)
+    # agents_data_dir = f"{results_dir}/agent_data_copy.json"
+    # with open(agents_data_dir) as f:
+    #     agent_data = json.load(f)
 
-    h5_filepath = f"{results_dir}/data_full.hdf5"
+    h5_filepath = f"{results_dir}/data.hdf5"
     with h5py.File(h5_filepath, 'r') as f:
         for i, scene_name_with_episode in enumerate(f.keys()):
             sim_group = f[scene_name_with_episode]

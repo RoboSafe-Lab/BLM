@@ -854,7 +854,7 @@ class PPOEnvSplitUnifiedSimulation(EnvSplitUnifiedSimulation):
             "world_from_agent",
             "scene_index",
             "track_id",
-            "map_names",
+            # "map_names",
             "curr_speed",
             "drivable_map",
             "center_fut_positions",

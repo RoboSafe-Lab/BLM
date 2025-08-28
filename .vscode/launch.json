@@ -83,11 +83,28 @@
             ]
         },
         {
-            "name": "calculate",
+            "name": "compute_mean_std",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/CTG/scripts/calculate.py",
             "console": "integratedTerminal",
+        },
+        {
+            "name": "calculate_metrics",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/CTG/scripts/calculate_metrics.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--hdf5_dir",
+                "safety_critical_trained_models/ppo_latent_dm/data.hdf5",
+                "--output_dir",
+                "safety_critical_trained_models/ppo_latent_dm/metrics",
+                "--nusc_dir",
+                "../nuscenes",
+                "--desired_dt",
+                "0.1"
+            ]
         }
     ]
 }

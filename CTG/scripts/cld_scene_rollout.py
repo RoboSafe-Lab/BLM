@@ -246,18 +246,17 @@ def dump_episode_buffer(buffer, scene_index, start_frames, h5_path):
                 if len(data) > 0:
                     if isinstance(data, list):
                         first_elem = data[0]
-                    else:
-                        first_elem = data
-                    
-                    # 对于字符串类型，转换为字节类型以便HDF5保存
-                    if hasattr(first_elem, 'dtype') and first_elem.dtype.kind in ['U', 'S']:
-                        # 将Unicode字符串转换为字节字符串
-                        if isinstance(data, list):
+                        # 检查列表中的元素是否为字符串
+                        if isinstance(first_elem, str):
                             converted_data = [elem.encode('utf-8') if isinstance(elem, str) else elem for elem in data]
                         else:
-                            converted_data = np.char.encode(data, 'utf-8')
+                            converted_data = data
                     else:
-                        converted_data = data
+                        # numpy数组的情况
+                        if hasattr(data, 'dtype') and data.dtype.kind in ['U', 'S']:
+                            converted_data = np.char.encode(data, 'utf-8')
+                        else:
+                            converted_data = data
                 else:
                     converted_data = data
             else:
@@ -543,3 +542,4 @@ if __name__ == "__main__":
         render_to_img=args.render_img,
         render_cfg=render_cfg,
     )
+
