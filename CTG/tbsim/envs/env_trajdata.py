@@ -858,7 +858,9 @@ class PPOEnvSplitUnifiedSimulation(EnvSplitUnifiedSimulation):
             "curr_speed",
             "drivable_map",
             "center_fut_positions",
-            "center_from_raster"
+            "center_from_raster",
+            "raster_from_world",
+            "agent_name"
         ]
         info_keys_to_log = [
             "action_samples",
@@ -972,7 +974,7 @@ class PPOEnvSplitUnifiedSimulation(EnvSplitUnifiedSimulation):
         keys_to_take = [ 'drivable_map', 'center_fut_positions','map_names', \
              'center_fut_yaws', 'center_fut_availabilities', 'center_hist_positions', 'center_hist_yaws', 'center_hist_availabilities',\
              'center_curr_speeds', 'centroid', 'yaw',  'extent', 'raster_from_center', 'center_from_raster',\
-             'raster_from_world', 'center_from_world', 'world_from_agent', 'scene_index', 'track_id','curr_speed']
+             'raster_from_world', 'center_from_world', 'world_from_agent', 'scene_index', 'track_id','curr_speed', 'agent_name']
         obs_selected = {k:v for k,v in obs.items() if k in keys_to_take}
         if split_ego:
             ego_mask = [name=="ego" for name in self.current_agent_names]

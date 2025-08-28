@@ -298,6 +298,7 @@ def parse_node_centric(batch: dict):
         
         center_from_world=batch['agents_from_world_tf'],
         world_from_agent=world_from_agents,
+        agent_name = batch['agent_name'],
 
     )
     return d

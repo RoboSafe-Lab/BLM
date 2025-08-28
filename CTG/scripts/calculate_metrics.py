@@ -359,8 +359,8 @@ def main(args):
             raster_from_world = sim_group[hdf5_info['raster']][:]  # Shape: (agent, T, 3, 3)
             drivable_map = sim_group[hdf5_info['map']][:]  # Shape: (agent, T, 224, 224)
             all_agent_predictions = sim_group[hdf5_info['sample_positions']][:] # Shape: (agent, T, N, M, 2)
-            agent_ids = sim_group[hdf5_info['agent_ids']][:][:,0,0] # Shape: (agent, 1)
-
+            # agent_ids = sim_group[hdf5_info['agent_ids']][:][:,0,0] # Shape: (agent, 1)
+            agent_ids = sim_group[hdf5_info['agent_ids']][:][:,0] # Shape: (agent, 1)
             scene_num = len(f.keys())
             print(f"Process {i + 1}/{scene_num}: {base_scene_name}")
 
@@ -491,9 +491,13 @@ def main(args):
             results_list.append(final_metrics)
 
     if results_list:
+        # 检查并创建输出目录
+     
+        os.makedirs(args.output_dir, exist_ok=True)
+        
         results_df = pd.DataFrame(results_list)
         results_df.to_csv(f'{args.output_dir}/results.csv', index=False)
-        print(f"\nEvaluation results saved to: {args.output_dir}\\results.csv")
+        print(f"\nEvaluation results saved to: {args.output_dir}/results.csv")
     else:
         print("No results to save.")
 
