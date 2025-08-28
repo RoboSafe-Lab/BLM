@@ -4,7 +4,7 @@
     "dataset_path": "../nuscenes",
     "eval_class": "PPO_Latent_Diffuser",
     "seed": 42,
-    "num_scenes_per_batch": 2,
+    "num_scenes_per_batch": 5,
     
     "num_episode_repeats": 1,
     "start_frame_index_each_episode": null,
@@ -21,8 +21,8 @@
         "num_sim_per_scene": 1,
         "future_sec": 5.2,
         "history_sec": 3.0,
-        "eval_scenes": [35,36],
-        "num_simulation_steps": 100,
+        "num_scenes_to_evaluate":150,
+        "num_simulation_steps": 200,
         "n_step_action": 5
         
     },

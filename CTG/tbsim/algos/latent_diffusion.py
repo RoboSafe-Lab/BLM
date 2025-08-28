@@ -127,7 +127,7 @@ class LatentDiffusion(pl.LightningModule):
         self._freeze_vae()
 
         pos_list, yaw_list = [], []
-        num_samples = 10
+        num_samples = 20
         for _ in range(num_samples):
             preds = self(obs_torch, global_t=kwargs['step_index'])["predictions"]
             pos_list.append(preds["positions"])   # [A,T,2]
