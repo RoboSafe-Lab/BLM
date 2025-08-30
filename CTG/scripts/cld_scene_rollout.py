@@ -52,8 +52,13 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
         os.makedirs(os.path.join(eval_cfg.results_dir, "viz/"), exist_ok=True)
     if save_cfg:
         json.dump(eval_cfg, open(os.path.join(eval_cfg.results_dir, "config.json"), "w+"))
-    if data_to_disk and os.path.exists(eval_cfg.experience_hdf5_path):
-        os.remove(eval_cfg.experience_hdf5_path)
+    if data_to_disk:
+        if os.path.exists(eval_cfg.experience_hdf5_path):
+            if hasattr(eval_cfg, 'resume_from_scene') and eval_cfg.resume_from_scene is not None:
+                print(f"Keeping existing HDF5 file for resume: {eval_cfg.experience_hdf5_path}")
+            else:
+                os.remove(eval_cfg.experience_hdf5_path)
+                print(f"Removed existing HDF5 file: {eval_cfg.experience_hdf5_path}")
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -103,10 +108,18 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
                                                   cache_location='~/cld_cache')
 
     result_stats = None
+    
+    # 断点续传：检查是否从上次失败的地方继续
     scene_i = 0
+    # if hasattr(eval_cfg, 'resume_from_scene') and eval_cfg.resume_from_scene is not None:
+    #     scene_i = eval_cfg.resume_from_scene
+    #     print(f"Resuming from scene index: {scene_i}")
+    
     eval_scenes = eval_cfg.eval_scenes
-    while scene_i < eval_cfg.num_scenes_to_evaluate: #(0 到100)
-    # while scene_i < len(eval_scenes):
+
+    # while scene_i < eval_cfg.num_scenes_to_evaluate: #(0 到100)
+    # while scene_i < env._num_total_scenes:  # rollout所有可用场景
+    while scene_i < len(eval_scenes):
         scene_indices = eval_scenes[scene_i: scene_i + eval_cfg.num_scenes_per_batch]
         scene_i += eval_cfg.num_scenes_per_batch
         print('scene_indices', scene_indices)
@@ -439,6 +452,13 @@ if __name__ == "__main__":
         help="['action', 'entire_traj', 'map']"
     )
     
+    parser.add_argument(
+        "--resume_from_scene",
+        type=int,
+        default=None,
+        help="Resume rollout from a specific scene index (for checkpoint recovery)"
+    )
+    
     #
     # Editing options
     #
@@ -491,6 +511,11 @@ if __name__ == "__main__":
 
     if args.seed is not None:
         cfg.seed = args.seed
+    
+    if args.resume_from_scene is not None:
+        cfg.resume_from_scene = args.resume_from_scene
+        print(f"Will resume from scene index: {cfg.resume_from_scene}")
+    
     if args.results_root_dir is not None:
         cfg.results_dir = os.path.join(args.results_root_dir, cfg.name)
     else:
@@ -537,7 +562,7 @@ if __name__ == "__main__":
     run_scene_editor(
         cfg,
         save_cfg=False,
-        data_to_disk=True,
+        data_to_disk=False,
         render_to_video=args.render,
         render_to_img=args.render_img,
         render_cfg=render_cfg,
