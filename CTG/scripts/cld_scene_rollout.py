@@ -117,9 +117,9 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
     
     eval_scenes = eval_cfg.eval_scenes
 
-    # while scene_i < eval_cfg.num_scenes_to_evaluate: #(0 到100)
+    while scene_i < eval_cfg.num_scenes_to_evaluate: #(0 到100)
     # while scene_i < env._num_total_scenes:  # rollout所有可用场景
-    while scene_i < len(eval_scenes):
+    # while scene_i < len(eval_scenes):
         scene_indices = eval_scenes[scene_i: scene_i + eval_cfg.num_scenes_per_batch]
         scene_i += eval_cfg.num_scenes_per_batch
         print('scene_indices', scene_indices)

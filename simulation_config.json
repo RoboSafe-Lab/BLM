@@ -1,6 +1,6 @@
 {
     "results_dir": "safety_critical_trained_models/",
-    "name": "cld_origin",
+    "name": "0109",
     "dataset_path": "../nuscenes",
     "eval_class": "PPO_Latent_Diffuser",
     "seed": 42,
@@ -22,9 +22,9 @@
         "future_sec": 5.2,
         "history_sec": 3.0,
         "num_scenes_to_evaluate":150,
-        "eval_scenes": [19,20,21,22],
+  
         "num_simulation_steps": 100,
-        "n_step_action": 5
+        "n_step_action": 10
         
     },
     
