@@ -6,6 +6,9 @@ diffuser_trained_models/
 safety_critical_trained_models/
 **/logs/log.txt
 
+# Metrics directory
+metrics/
+
 # TensorBoard events
 events.out.tfevents.*
 **/events.out.tfevents.*
