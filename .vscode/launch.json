@@ -46,10 +46,12 @@
                 "simulation_config.json",
                 "--env",
                 "trajdata",
-                // "--render",
-                // "--render_px_per_m",
-                // "3.0",
-                "--render_img"
+                "--render",
+                "--render_px_per_m",
+                "4.0",
+                // "--render_img",
+                // "--resume_from_scene",
+                // "100"
             ]
         },
         {
@@ -97,7 +99,7 @@
             "console": "integratedTerminal",
             "args": [
                 "--hdf5_dir",
-                "safety_critical_trained_models/ppo_latent_dm/data.hdf5",
+                "safety_critical_trained_models/ppo_latent_dm/hddata.hdf5",
                 "--output_dir",
                 "safety_critical_trained_models/ppo_latent_dm/metrics",
                 "--nusc_dir",

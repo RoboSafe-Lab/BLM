@@ -66,6 +66,8 @@ pip install numba==0.56.4  # 支持 numpy 1.21.x
 ```bash
 scp -r /Users/visier/cld_cache yx3006@dmog.hw.ac.uk:/users/yx3006/
 key: qwe123456
+若已经配置remote config
+ rsync -avz --progress cw3005:xxx  本地路径
 ```
 
 
