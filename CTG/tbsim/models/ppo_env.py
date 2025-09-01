@@ -240,7 +240,7 @@ def compute_road_reward(pred_positions, drivable_map, raster_from_center, beta: 
 
 def proximity_reward_monotone(
         pred_positions, neigh_fut_positions, neigh_fut_availabilities,
-        d_col: float = 2.0,
+        d_col: float = 4.0,
         decay: float = 0.95):
 
     T = min(pred_positions.shape[0], neigh_fut_positions.shape[1])
