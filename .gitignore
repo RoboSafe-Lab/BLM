@@ -9,6 +9,9 @@ safety_critical_trained_models/
 # Metrics directory
 metrics/
 
+# Test results directory
+ctg_test/
+
 # TensorBoard events
 events.out.tfevents.*
 **/events.out.tfevents.*
