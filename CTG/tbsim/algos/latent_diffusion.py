@@ -125,9 +125,11 @@ class LatentDiffusion(pl.LightningModule):
         # from tbsim.utils.safety_critical_fig_vis import plot_trajdata_batch
         # plot_trajdata_batch(obs_torch,None)
         self._freeze_vae()
-
+        cur_policy = self.nets["policy"]
+        cur_policy.update_guidance(global_t=kwargs['step_index'])
+        
         pos_list, yaw_list = [], []
-        num_samples = 1
+        num_samples = 10
         for _ in range(num_samples):
             preds = self(obs_torch, global_t=kwargs['step_index'])["predictions"]
             pos_list.append(preds["positions"])   # [A,T,2]
@@ -170,3 +172,37 @@ class LatentDiffusion(pl.LightningModule):
         # )
         
         return action, info
+    def set_guidance(self, guidance_config, example_batch=None):
+        '''
+        Resets the test-time guidance functions to follow during prediction.
+        '''
+        cur_policy = self.nets["policy"]
+
+        cur_policy.set_guidance(guidance_config, example_batch)
+    
+    def clear_guidance(self):
+        cur_policy = self.nets["policy"]
+
+        cur_policy.clear_guidance()
+
+
+    def set_constraints(self, constraint_config):
+        '''
+        Resets the test-time hard constraints to follow during prediction.
+        '''
+        cur_policy = self.nets["policy"]
+ 
+        cur_policy.set_constraints(constraint_config)
+
+    def set_guidance_optimization_params(self, guidance_optimization_params):
+        '''
+        Resets the test-time guidance_optimization_params.
+        '''
+        cur_policy = self.nets["policy"]
+
+        cur_policy.set_guidance_optimization_params(guidance_optimization_params)
+    
+    def set_diffusion_specific_params(self, diffusion_specific_params):
+        cur_policy = self.nets["policy"]
+  
+        cur_policy.set_diffusion_specific_params(diffusion_specific_params)

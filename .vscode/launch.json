@@ -46,12 +46,10 @@
                 "simulation_config.json",
                 "--env",
                 "trajdata",
-                "--render",
+                // "--render",
                 "--render_px_per_m",
                 "4.0",
-                // "--render_img",
-                // "--resume_from_scene",
-                // "100"
+                "--render_img",
             ]
         },
         {
@@ -99,13 +97,58 @@
             "console": "integratedTerminal",
             "args": [
                 "--hdf5_dir",
-                "safety_critical_trained_models/ppo_latent_dm/hddata.hdf5",
+                "safety_critical_trained_models/guidance_during_sampling_with_ppo_1/data.hdf5",
                 "--output_dir",
-                "safety_critical_trained_models/ppo_latent_dm/metrics",
+                "safety_critical_trained_models/guidance_during_sampling_with_ppo_1/metrics",
                 "--nusc_dir",
                 "../nuscenes",
                 "--desired_dt",
                 "0.1"
+            ]
+        },
+        {
+            "name": "ctg_rollout",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/CTG/scripts/scene_editor.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--results_root_dir",
+                "ctg_test/",
+                "--num_scenes_per_batch",
+                "1",
+                "--dataset_path",
+                "../nuscenes",
+                "--env",
+                "trajdata",
+                "--policy_ckpt_dir",
+                "ctg_test/",
+                "--policy_ckpt_key",
+                "iter100000.ckpt",
+                "--eval_class",
+                "Diffuser",
+                "--editing_source",
+                "config",
+                "heuristic",
+                "--registered_name",
+                "trajdata_nusc_diff",
+                "--render",
+                "--render_px_per_m",
+                "4.0",
+                // "--render_img",
+            ]
+        },
+        {
+            "name": "compute_csv",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/CTG/scripts/compute_csv.py",
+            "console": "integratedTerminal",
+            "args": [
+
+                "metrics/BLM_SG_common.csv",
+
             ]
         }
     ]

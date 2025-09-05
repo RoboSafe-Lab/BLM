@@ -885,7 +885,7 @@ class PPOEnvSplitUnifiedSimulation(EnvSplitUnifiedSimulation):
         scene.agents = valid_agents
     def get_observation(self,split_ego=None,return_raw=False):
         if split_ego is None:
-            split_ego = self.split_ego
+            split_ego = False#NOTE:改回self.split_ego
         if return_raw:
             if self._cached_raw_observation is not None:
                 return self._cached_raw_observation
@@ -946,7 +946,7 @@ class PPOEnvSplitUnifiedSimulation(EnvSplitUnifiedSimulation):
         else:
             # if ego is not splitted out, then either parse all observation or do not parse any observation.
             assert isinstance(self.parse_obs,bool)
-            agent_obs = self.dataset.get_collate_fn()(raw_obs)
+            agent_obs = self.dataset.get_collate_fn(return_dict=True)(raw_obs)
             if self.parse_obs:
                 agent_obs = parse_batch(agent_obs)
                 agent_obs = TensorUtils.to_numpy(agent_obs,ignore_if_unspecified=True)

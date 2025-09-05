@@ -28,7 +28,7 @@ from tbsim.policies.wrappers import (
 from tbsim.utils.tensor_utils import map_ndarray
 import tbsim.utils.tensor_utils as TensorUtils
 
-
+import time
 def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_to_img, render_cfg):
     assert eval_cfg.env in ["nusc", "trajdata"], "Currently only nusc and trajdata environments are supported"
         
@@ -52,24 +52,46 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
         os.makedirs(os.path.join(eval_cfg.results_dir, "viz/"), exist_ok=True)
     if save_cfg:
         json.dump(eval_cfg, open(os.path.join(eval_cfg.results_dir, "config.json"), "w+"))
-    if data_to_disk:
-        if os.path.exists(eval_cfg.experience_hdf5_path):
-            if hasattr(eval_cfg, 'resume_from_scene') and eval_cfg.resume_from_scene is not None:
-                print(f"Keeping existing HDF5 file for resume: {eval_cfg.experience_hdf5_path}")
-            else:
-                os.remove(eval_cfg.experience_hdf5_path)
-                print(f"Removed existing HDF5 file: {eval_cfg.experience_hdf5_path}")
+    if data_to_disk and os.path.exists(eval_cfg.experience_hdf5_path):
+        os.remove(eval_cfg.experience_hdf5_path)
+
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     # create policy and rollout wrapper
     policy_composers = importlib.import_module("tbsim.evaluation.policy_composers")
     composer_class = getattr(policy_composers, eval_cfg.eval_class)
+    
     # composer = composer_class(eval_cfg, device)
     # policy, exp_config = composer.get_policy()
 
     ego_composer = composer_class(eval_cfg, device)
     ego_policy, exp_config = ego_composer.get_policy()
+
+#    # 取出两个子模块
+#     policy = ego_policy.model.nets['policy']
+#     vae = ego_policy.model._externals['vae']  # 你代码里这样存的
+
+#     # 合并统计（过滤 "ema"，指针去重）
+#     seen = set()
+#     total = trainable = 0
+#     bytes_total = 0
+
+#     for m in (policy, vae):
+#         for n, p in m.named_parameters():
+#             if "ema" in n:  # 如无 EMA，可去掉此行
+#                 continue
+#             ptr = p.data_ptr()
+#             if ptr in seen:
+#                 continue
+#             seen.add(ptr)
+#             total += p.numel()
+#             if p.requires_grad:
+#                 trainable += p.numel()
+#             bytes_total += p.numel() * p.element_size()
+
+#     print(f"total={total:,}, trainable={trainable:,}, size≈{bytes_total/(1024**2):.2f} MB")
+
 
     agents_composer = composer_class(eval_cfg, device)
     agents_planner, _ = agents_composer.get_planner()
@@ -84,7 +106,8 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
     if hasattr(ego_policy, 'model'):
         policy_model = ego_policy.model
 
-
+    policy_model.set_guidance_optimization_params(eval_cfg.guidance_optimization_params)
+    policy_model.set_diffusion_specific_params(eval_cfg.diffusion_specific_params)
 
     env_builder = EnvCLDBuilder(eval_config=eval_cfg, exp_config=exp_config, device=device)
     env = env_builder.get_env()
@@ -92,7 +115,7 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
 
     # eval loop
     obs_to_torch = eval_cfg.eval_class not in ["GroundTruth", "ReplayAction"]
-
+    heuristic_config = eval_cfg.edits.heuristic_config
 
     render_rasterizer = None
     if render_to_video or render_to_img:
@@ -108,17 +131,12 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
                                                   cache_location='~/cld_cache')
 
     result_stats = None
-    
-    # 断点续传：检查是否从上次失败的地方继续
     scene_i = 0
-    # if hasattr(eval_cfg, 'resume_from_scene') and eval_cfg.resume_from_scene is not None:
-    #     scene_i = eval_cfg.resume_from_scene
-    #     print(f"Resuming from scene index: {scene_i}")
-    
     eval_scenes = eval_cfg.eval_scenes
-
+    start_time = time.time()
+    print("=== 开始场景评估 ===")
     while scene_i < eval_cfg.num_scenes_to_evaluate: #(0 到100)
-    # while scene_i < env._num_total_scenes:  # rollout所有可用场景
+
     # while scene_i < len(eval_scenes):
         scene_indices = eval_scenes[scene_i: scene_i + eval_cfg.num_scenes_per_batch]
         scene_i += eval_cfg.num_scenes_per_batch
@@ -161,6 +179,88 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
                 continue
 
 
+            #-------------------guidance config-------------------
+            use_ui = False
+            if not use_ui:
+                # getting edits from either the config file or on-the-fly heuristics
+                if "config" in eval_cfg.edits.editing_source:
+                    guidance_config = eval_cfg.edits.guidance_config
+                    constraint_config  = eval_cfg.edits.constraint_config
+                if "heuristic" in eval_cfg.edits.editing_source:
+                    # reset so that we can get an example batch to initialize guidance more efficiently
+                    env.reset(scene_indices=scene_indices, start_frame_index=sim_start_frames)
+                    ex_obs = env.get_observation()
+                    if obs_to_torch:
+                        device = policy.device if device is None else device
+                        ex_obs = TensorUtils.to_torch(ex_obs, device=device, ignore_if_unspecified=True)
+
+                    # build heuristic guidance configs for these scenes
+                    heuristic_guidance_cfg = compute_heuristic_guidance(heuristic_config,
+                                                                        env,
+                                                                        sim_scene_indices,
+                                                                        sim_start_frames,
+                                                                        example_batch=ex_obs['agents'])
+                                                                        
+                    if len(heuristic_config) > 0:
+                        # we asked to apply some guidance, but if heuristic determined there was no valid
+                        #       guidance to apply (e.g. no social groups), we should skip these scenes.
+                        valid_scene_inds = []
+                        for sci, sc_cfg in enumerate(heuristic_guidance_cfg):
+                            if len(sc_cfg) > 0:
+                                valid_scene_inds.append(sci)
+
+                        # collect only valid scenes under the given heuristic config
+                        heuristic_guidance_cfg = [heuristic_guidance_cfg[vi] for vi in valid_scene_inds]
+                        sim_scene_indices = [sim_scene_indices[vi] for vi in valid_scene_inds]
+                        sim_start_frames = [sim_start_frames[vi] for vi in valid_scene_inds]
+                        # skip if no valid...
+                        if len(sim_scene_indices) == 0:
+                            print('No scenes with valid heuristic configs in this sim, skipping...')
+                            torch.cuda.empty_cache()
+                            continue
+
+                    # add to the current guidance config
+                    guidance_config = merge_guidance_configs(guidance_config, heuristic_guidance_cfg)
+            else:
+                # TODO get guidance from the UI
+                # TODO for UI, get edits from user. loop continuously until the user presses
+                #       "play" or something like that then we roll out.
+                raise NotImplementedError()
+        if len(sim_scene_indices) == 0:
+            print('No scenes with valid heuristic configs in this scene, skipping...')
+            torch.cuda.empty_cache()
+            continue
+
+        # remove agents from agent_collision guidance if they are in chosen gptcollision pair
+        for si in range(len(guidance_config)):
+            if len(guidance_config[si]) > 0:
+                agent_collision_heur_ind = None
+                gpt_collision_heur_ind = None
+                for i, cur_heur in enumerate(guidance_config[si]):
+                    if cur_heur['name'] == 'agent_collision':
+                        agent_collision_heur_ind = i
+                    elif cur_heur['name'] == 'gptcollision':
+                        gpt_collision_heur_ind = i
+                if agent_collision_heur_ind is not None and gpt_collision_heur_ind is not None:
+                        ind1 = guidance_config[si][gpt_collision_heur_ind]['params']['target_ind']
+                        ind2 = guidance_config[si][gpt_collision_heur_ind]['params']['ref_ind']
+                        excluded_agents = [ind1, ind2]
+                        guidance_config[si][agent_collision_heur_ind]['params']['excluded_agents'] = excluded_agents
+                        print('excluded_agents', excluded_agents)
+
+        # ----------------------------------------------------------------------------------
+        # Sampling Wrapper leveraging most existing policy composer sampling interfaces
+        from tbsim.policies.wrappers import NewSamplingPolicyWrapper
+        if eval_cfg.eval_class in ['TrafficSim', 'HierarchicalSampleNew']:
+            if scene_i == eval_cfg.num_scenes_per_batch or not isinstance(policy, NewSamplingPolicyWrapper):
+                policy = NewSamplingPolicyWrapper(policy, guidance_config)
+            else:
+                policy.update_guidance_config(guidance_config)
+
+
+        #---------------------------------------------------
+
+
         if eval_cfg.policy.pos_to_yaw:
             ego_policy = Pos2YawWrapper(
                 ego_policy,
@@ -174,8 +274,8 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
             )
         
         # right now assume control of full scene
-        rollout_policy = RolloutWrapper(ego_policy=ego_policy, 
-                                        agents_policy=agents_planner,
+        rollout_policy = RolloutWrapper(ego_policy=None, 
+                                        agents_policy=ego_policy,
                                         pass_agent_obs=False)
 
 
@@ -189,7 +289,20 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
             obs_to_torch=obs_to_torch,
             horizon=eval_cfg.num_simulation_steps,
             start_frames=sim_start_frames,
-        )    
+        )   
+        # stats, info, renderings = guided_rollout(
+        #     env,
+        #     rollout_policy,
+        #     policy_model,
+        #     n_step_action=eval_cfg.n_step_action,
+        #     guidance_config=guidance_config,
+        #     constraint_config=constraint_config,
+        #     render=False, # render after the fact
+        #     scene_indices=scene_indices,
+        #     obs_to_torch=obs_to_torch,
+        #     horizon=eval_cfg.num_simulation_steps,
+        #     start_frames=sim_start_frames,
+        # )    
 
         print(info["scene_index"])
         print(sim_start_frames)
@@ -245,6 +358,13 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
             )
         torch.cuda.empty_cache()
 
+    end_time = time.time()
+    total_time = end_time - start_time
+    print("=== 场景评估完成 ===")
+    print(f"总评估时间: {total_time:.4f} 秒")
+    print(f"评估场景数: {scene_i}")
+    print(f"平均每场景时间: {total_time/max(scene_i, 1):.4f} 秒")
+    print("==================")
 
 def dump_episode_buffer(buffer, scene_index, start_frames, h5_path):
     import h5py
@@ -452,12 +572,7 @@ if __name__ == "__main__":
         help="['action', 'entire_traj', 'map']"
     )
     
-    parser.add_argument(
-        "--resume_from_scene",
-        type=int,
-        default=None,
-        help="Resume rollout from a specific scene index (for checkpoint recovery)"
-    )
+
     
     #
     # Editing options
@@ -512,10 +627,7 @@ if __name__ == "__main__":
     if args.seed is not None:
         cfg.seed = args.seed
     
-    if args.resume_from_scene is not None:
-        cfg.resume_from_scene = args.resume_from_scene
-        print(f"Will resume from scene index: {cfg.resume_from_scene}")
-    
+
     if args.results_root_dir is not None:
         cfg.results_dir = os.path.join(args.results_root_dir, cfg.name)
     else:
@@ -562,7 +674,7 @@ if __name__ == "__main__":
     run_scene_editor(
         cfg,
         save_cfg=False,
-        data_to_disk=False,
+        data_to_disk=True,
         render_to_video=args.render,
         render_to_img=args.render_img,
         render_cfg=render_cfg,

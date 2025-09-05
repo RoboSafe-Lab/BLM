@@ -17,7 +17,7 @@ from tbsim.models.context_encoder import (
     NeighborHistoryEncoder
 
 )
-
+from copy import deepcopy
 
 import numpy as np
 from tbsim.utils.geometry_utils import transform_points_tensor
@@ -30,6 +30,8 @@ from .diffuser_helpers import (
 from tbsim.dynamics import Unicycle
 import tbsim.utils.tensor_utils as TensorUtils
 
+
+from tbsim.utils.guidance_loss import PerturbationGuidance, verify_guidance_config_list, verify_constraint_config,apply_constraints
 class PPO_LatentDiffusion(nn.Module):
     def __init__(
         self, 
@@ -150,6 +152,16 @@ class PPO_LatentDiffusion(nn.Module):
         self.input_image_shape = input_image_shape
         self.ddim_steps = ddim_steps
 
+
+        self.stride = 1
+        self.apply_guidance_output = False
+        self.guidance_optimization_params = None
+        self.current_constraints = None
+        self.transform = self.latent_grad_inner_transform
+        self.transform_params = {'scaled_input': True, 'scaled_output': True, 'vae': None}
+
+        # wrapper for optimization using current_guidance
+        self.current_perturbation_guidance = PerturbationGuidance(self.transform, self.transform_params, self.scale_traj, self.descale_traj)
 
     def _create_dynamics(self,config):
             self.dyn = Unicycle(
@@ -321,12 +333,12 @@ class PPO_LatentDiffusion(nn.Module):
             return c.tolist(), next_c
 
     @torch.no_grad()
-    def sample_ddim(self, batch, eta=0.3, z0=None, vae=None):
+    def sample_ddim(self, batch, eta=0, z0=None, vae=None):
 
         # 1) 条件编码
         
         cond_feat, map_grid_feat = self.context_encoder(batch)
-
+        self.transform_params['vae'] = vae
         B, L, d_latent = z0.shape
         
 
@@ -351,8 +363,34 @@ class PPO_LatentDiffusion(nn.Module):
 
             mix_dist = self.mix_dist(z_t, pi, mu, sigma,t_tensor, t_next_tensor, eta)
 
-            z_t = mix_dist.sample()
+            z_next = mix_dist if isinstance(mix_dist, torch.Tensor) else mix_dist.sample()
 
+            #------apply guidance------
+            # is_last = (t_next == 0)
+            # if (getattr(self, 'apply_guidance_intermediate', False) and not is_last) \
+            # or (getattr(self, 'apply_guidance_output', False) and is_last):
+
+            #     # 可用 σ_t 作为步长/裁剪的尺度（与上面的 t,t_next 对齐）
+            #     alpha_t    = extract(self.alphas_cumprod, t_tensor,      z_t.shape)
+            #     alpha_next = extract(self.alphas_cumprod, t_next_tensor, z_t.shape)
+            #     sigma_t = eta * torch.sqrt(
+            #         ((1 - alpha_t/alpha_next) * (1 - alpha_next) / (1 - alpha_t)).clamp_min(1e-8)
+            #     )
+
+            #     opt_params = deepcopy(self.guidance_optimization_params)
+            #     # 若未显式给 lr/perturb_th，则用 σ_t 做自适应尺度
+            #     if opt_params.get('lr', None) is None: opt_params['lr'] = sigma_t
+            #     if opt_params.get('perturb_th', None) is None: opt_params['perturb_th'] = sigma_t
+
+            #     # 重要：让 z 有梯度，PG 会在 transform(z, ...) 上回传并更新 z
+            #     z_var = z_next.clone().detach().requires_grad_(True)
+            #     z_guided, _ = self.current_perturbation_guidance.perturb(
+            #         z_var, data_batch=batch, opt_params=opt_params, num_samp=1, return_grad_of=z_var
+            #     )
+            #     z_next = z_guided.detach()
+            #------apply guidance------end
+
+            z_t = z_next
         with torch.no_grad():
             x_t = vae.vae_decoder(z_bld=z_t,
                                 cond_feat=None,
@@ -384,43 +422,110 @@ class PPO_LatentDiffusion(nn.Module):
         }
         return out_dict
     
-    def mix_dist(self,x_t, pi, mu, sigma_gmm, t_tensor, t_next_tensor, eta):
- 
-        
+    def mix_dist(self, x_t, pi, mu, sigma_gmm, t_tensor, t_next_tensor, eta):
         alpha_t    = extract(self.alphas_cumprod, t_tensor,      x_t.shape)
         alpha_next = extract(self.alphas_cumprod, t_next_tensor, x_t.shape)
-        
         sqrt_alpha_t = torch.sqrt(alpha_t).unsqueeze(-1)
         sqrt_one_minus_alpha_t = torch.sqrt((1 - alpha_t).clamp_min(1e-8)).unsqueeze(-1)
-        
-        # 计算eps_pred
+
+        # eps_pred (x0-parameterization)
         eps_pred = (x_t.unsqueeze(2) - sqrt_alpha_t * mu) / sqrt_one_minus_alpha_t
-        
-        # DDIM方差
+
         sigma_t = eta * torch.sqrt(
             ((1 - alpha_t / alpha_next) * (1 - alpha_next) / (1 - alpha_t)).clamp_min(1e-8)
         ).unsqueeze(-1)
-        
-        # 均值计算
-        mu_t = (
-            torch.sqrt(alpha_next).unsqueeze(-1) * mu
-            + torch.sqrt((1 - alpha_next).unsqueeze(-1) - sigma_t**2) * eps_pred
-        )
-        
+
+        # 主路径均值
+        sqrt_term = torch.sqrt(((1 - alpha_next).unsqueeze(-1) - sigma_t**2).clamp_min(0.0))
+        mu_t = torch.sqrt(alpha_next).unsqueeze(-1) * mu + sqrt_term * eps_pred  # [B,T,K,dim]
+
         if eta == 0:
-            # 确定性DDIM：每个分量都是确定性的
-            # 使用很小的方差来近似Dirac delta分布
-            min_sigma = 1e-8
-            sigma_combined = torch.full_like(mu_t, min_sigma)
-        else:
-            # 随机DDIM：组合GMM方差和DDIM方差
-            var_combined = alpha_next.unsqueeze(-1) * (sigma_gmm**2) + sigma_t**2
-            sigma_combined = torch.sqrt(var_combined)
-        
-        # 构造混合分布
-        comp_dist = Independent(Normal(mu_t, sigma_combined), 1)
-        mix_dist = MixtureSameFamily(
-            mixture_distribution=Categorical(pi),
-            component_distribution=comp_dist
+            # 方案B：MAP 分量
+            k_star = pi.argmax(dim=-1)  # [B,T]
+            x0_hat = torch.gather(
+                mu, 2, k_star.unsqueeze(-1).unsqueeze(-1).expand(-1, -1, 1, mu.size(-1))
+            ).squeeze(2)  # [B,T,dim]
+            sqrt_a_t     = torch.sqrt(alpha_t)
+            sqrt_1ma_t   = torch.sqrt((1 - alpha_t).clamp_min(1e-8))
+            sqrt_a_next  = torch.sqrt(alpha_next)
+            sqrt_1manext = torch.sqrt((1 - alpha_next).clamp_min(1e-8))
+            eps_hat = (x_t - sqrt_a_t * x0_hat) / sqrt_1ma_t
+            x_next  = sqrt_a_next * x0_hat + sqrt_1manext * eps_hat    # [B,T,dim]
+            return x_next   # 直接返回张量（确定性）
+
+        # eta>0: 仍然随机
+        var_combined   = alpha_next.unsqueeze(-1) * (sigma_gmm**2) + sigma_t**2
+        sigma_combined = torch.sqrt(var_combined.clamp_min(1e-12))
+        comp = Independent(Normal(mu_t, sigma_combined), 1)
+        mix = MixtureSameFamily(Categorical(pi), comp)
+        return mix  # 返回分布
+
+
+    def set_guidance(self, guidance_config, example_batch=None):
+        '''
+        Instantiates test-time guidance functions using the list of configs (dicts) passed in.
+        '''
+        if guidance_config is not None:
+            if len(guidance_config) > 0 and verify_guidance_config_list(guidance_config):
+                print('Instantiating test-time guidance with configs:')
+                print(guidance_config)
+                self.current_perturbation_guidance.set_guidance(guidance_config, example_batch)
+
+
+    def set_constraints(self, constraint_config):
+        '''
+        Instantiates test-time hard constraints using the config (dict) passed in.
+        '''
+        if constraint_config is not None and len(constraint_config) > 0:
+            verify_constraint_config(constraint_config)
+            print('Instantiating test-time constraints with config:')
+            print(constraint_config)
+            self.current_constraints = constraint_config
+    def update_guidance(self, **kwargs):
+        if self.current_perturbation_guidance.current_guidance is not None:
+            self.current_perturbation_guidance.update(**kwargs)
+
+    def clear_guidance(self):
+        self.current_perturbation_guidance.clear_guidance()
+
+    def set_guidance_optimization_params(self, guidance_optimization_params):
+        self.guidance_optimization_params = guidance_optimization_params
+
+    def set_diffusion_specific_params(self, diffusion_specific_params):
+        self.apply_guidance_intermediate = diffusion_specific_params['apply_guidance_intermediate']
+        self.apply_guidance_output = diffusion_specific_params['apply_guidance_output']
+        self.final_step_opt_params = diffusion_specific_params['final_step_opt_params']
+        self.stride = diffusion_specific_params['stride']
+
+    def state_action_grad_inner_transform(self, x_guidance, data_batch, transform_params, **kwargs):
+        bsize = kwargs.get('bsize', x_guidance.shape[0])
+        num_samp = kwargs.get('num_samp', 1)
+
+        curr_states  = torch.cat([data_batch['center_curr_positions'],
+                                data_batch['center_curr_speeds'].unsqueeze(-1),
+                                data_batch['center_curr_yaws'].unsqueeze(-1)], dim=-1)
+        expand_states = curr_states.unsqueeze(1).expand((bsize, num_samp, 4)).reshape((bsize*num_samp, 4))
+
+        x_all = self.convert_action_to_state_and_action(x_guidance, expand_states, scaled_input=transform_params['scaled_input'], descaled_output=transform_params['scaled_output'])
+        return x_all
+
+# ------------------- 新增：latent 版 transform -------------------
+    def latent_grad_inner_transform(self, z_guidance, data_batch, transform_params, **kwargs):
+
+        bsize = kwargs.get('bsize', z_guidance.shape[0])
+        num_samp = kwargs.get('num_samp', 1)
+        vae = transform_params['vae']             # 从 transform_params 里拿到 VAE
+
+        # 1) latent → 动作 (缩放域)
+        x_action = vae.vae_decoder(z_bld=z_guidance, cond_feat=None, grid_map_traj_T=None)
+        # 2) 动作 → state+action（输入是缩放域动作，所以 scaled_input=True）
+        curr_states = torch.cat(
+            [data_batch['center_curr_positions'],
+            data_batch['center_curr_speeds'].unsqueeze(-1),
+            data_batch['center_curr_yaws'].unsqueeze(-1)], dim=-1
         )
-        return mix_dist
+        expand_states = curr_states.unsqueeze(1).expand((bsize, num_samp, 4)).reshape((bsize*num_samp, 4))
+        x_all = self.convert_action_to_state_and_action(
+            x_action, expand_states, scaled_input=True, descaled_output=True
+        )
+        return x_all

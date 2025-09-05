@@ -292,6 +292,7 @@ def parse_node_centric(batch: dict):
         neigh_extent=neigh_hist_extents.max(dim=-2)[0] * extent_scale,
         
         raster_from_center=raster_from_agent,
+        raster_from_agent=raster_from_agent,
         center_from_raster=agent_from_raster,
         
         raster_from_world=raster_from_world,

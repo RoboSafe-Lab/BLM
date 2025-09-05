@@ -64,7 +64,7 @@ def guided_rollout(
 
     if len(guidance_config) > 0:
         # only set guidance for those support inner perturbation; filtration is currently considered as separate outside wrapper
-        if apply_guidance and eval_class in ['SceneDiffuser', 'Diffuser', 'TrafficSim', 'BC', 'HierarchicalSampleNew']:
+        if apply_guidance and eval_class in ['SceneDiffuser', 'Diffuser', 'TrafficSim', 'BC', 'HierarchicalSampleNew','PPO_Latent_Diffuser']:
             # reset so that we can get an example batch to initialize guidance more efficiently
             env.reset(scene_indices=scene_indices, start_frame_index=start_frames)
             ex_obs = env.get_observation()
@@ -122,19 +122,19 @@ def guided_rollout(
         if horizon is not None and counter >= horizon:
             break
 
-    metrics = env.get_metrics()
+    # metrics = env.get_metrics()
 
-    for k, v in metrics.items():
-        if k not in stats:
-            stats[k] = []
-        if is_batched_env:  # concatenate by scene
-            stats[k] = np.concatenate([stats[k], v], axis=0)
-        else:
-            stats[k].append(v)
+    # for k, v in metrics.items():
+    #     if k not in stats:
+    #         stats[k] = []
+    #     if is_batched_env:  # concatenate by scene
+    #         stats[k] = np.concatenate([stats[k], v], axis=0)
+    #     else:
+    #         stats[k].append(v)
 
-    # remove all temporary added metrics
-    for met_name in added_metrics:
-        env._metrics.pop(met_name)
+    # # remove all temporary added metrics
+    # for met_name in added_metrics:
+    #     env._metrics.pop(met_name)
     # and undo guidance setting
     if policy_model is not None:
         policy_model.clear_guidance()

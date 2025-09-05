@@ -61,7 +61,7 @@ class SceneEditingConfig(EvaluationConfig):
         self.save_action_samples = True
         # ---------------------------------------------------------------------------------------
         # sampling and filtration based on configs for cvae, bits, diffuser 
-        self.policy.num_action_samples = 5 # Diffuser: 20, CVAE: 20, BITS: 20
+        self.policy.num_action_samples = 1 # Diffuser: 20, CVAE: 20, BITS: 20
         # latent perturbation for cvae (trafficsim),
         # action perturbation for bc and bits,
         # action perturbation (every denoising step) for diffuser
@@ -113,7 +113,7 @@ class SceneEditingConfig(EvaluationConfig):
             else:
                 self.trajdata.trajdata_cache_location = "~/.unified_data_cache"
                 self.trajdata.trajdata_data_dirs = {
-                    "nusc_trainval" : "../behavior-generation-dataset/nuscenes",
+                    "nusc_trainval" : "../nuscenes",
                 }
                 
             self.trajdata.num_scenes_to_evaluate = 100 # 1 # 100 # 1 # 7 # 2 # 100 # 1

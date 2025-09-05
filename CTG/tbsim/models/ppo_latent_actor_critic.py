@@ -44,7 +44,7 @@ class DiffusionActor(nn.Module):
         self.backbone = backbone
         # 超参
         self.n_timesteps = n_diffusion_steps
-        self.eta = 0.3
+        self.eta = 0
         # 缓存给 dist_fn 用
         self._mu_t = None
         self._sigma_t = None

@@ -28,6 +28,9 @@ from tbsim.utils.tensor_utils import map_ndarray
 import tbsim.utils.tensor_utils as TensorUtils
 
 
+import time
+
+
 def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_to_img, render_cfg):
     assert eval_cfg.env in ["nusc", "trajdata"], "Currently only nusc and trajdata environments are supported"
         
@@ -63,7 +66,11 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
     composer_class = getattr(policy_composers, eval_cfg.eval_class)
     composer = composer_class(eval_cfg, device)
     policy, exp_config = composer.get_policy()
-    
+
+    total = sum(p.numel() for n, p in policy.model.nets['policy'].named_parameters() if "ema" not in n)
+    trainable = sum(p.numel() for n, p in policy.model.nets['policy'].named_parameters() if "ema" not in n and p.requires_grad)
+    size_mb = sum(p.numel() * p.element_size() for n, p in policy.model.nets['policy'].named_parameters() if "ema" not in n) / (1024**2)
+    print(f"total={total:,}, trainable={trainable:,}, size≈{size_mb:.2f} MB")
     # determines cfg for rasterizing agents
     set_global_trajdata_batch_raster_cfg(exp_config.env.rasterizer)
     
@@ -128,6 +135,11 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
     result_stats = None
     scene_i = 0
     eval_scenes = eval_cfg.eval_scenes
+    
+    # 添加总体评估计时器
+    start_time = time.time()
+    print("=== 开始场景评估 ===")
+    
     while scene_i < eval_cfg.num_scenes_to_evaluate:
         scene_indices = eval_scenes[scene_i: scene_i + eval_cfg.num_scenes_per_batch]
         scene_i += eval_cfg.num_scenes_per_batch
@@ -344,6 +356,14 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
             )
         torch.cuda.empty_cache()
 
+    end_time = time.time()
+    total_time = end_time - start_time
+    print("=== 场景评估完成 ===")
+    print(f"总评估时间: {total_time:.4f} 秒")
+    print(f"评估场景数: {scene_i}")
+    print(f"平均每场景时间: {total_time/max(scene_i, 1):.4f} 秒")
+    print("==================")
+
 
 def dump_episode_buffer(buffer, scene_index, start_frames, h5_path):
     import h5py
@@ -509,7 +529,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--save_every_n_frames",
         type=int,
-        default=5,
+        default=1,
         help="saving videos while skipping every n frames"
     )
 

@@ -1,10 +1,10 @@
 {
     "results_dir": "safety_critical_trained_models/",
-    "name": "0109",
+    "name": "guidance_during_sampling_with_ppo_1",
     "dataset_path": "../nuscenes",
     "eval_class": "PPO_Latent_Diffuser",
     "seed": 42,
-    "num_scenes_per_batch": 5,
+    "num_scenes_per_batch": 1,
     
     "num_episode_repeats": 1,
     "start_frame_index_each_episode": null,
@@ -21,21 +21,21 @@
         "num_sim_per_scene": 1,
         "future_sec": 5.2,
         "history_sec": 3.0,
-        "num_scenes_to_evaluate":150,
+        "num_scenes_to_evaluate":100,
   
         "num_simulation_steps": 100,
-        "n_step_action": 10
+        "n_step_action": 5
         
     },
     
     "ckpt": {
         "policy": {
-            "ckpt_dir": "safety_critical_trained_models/latent_dm",
-            "ckpt_key": "cw.ckpt"
+            "ckpt_dir": "safety_critical_trained_models/ppo_latent_dm",
+            "ckpt_key": "policy_best_20250904_222351.ckpt"
         },
         "planner": {
-            "ckpt_dir": "safety_critical_trained_models/latent_dm",
-            "ckpt_key": "cw.ckpt"
+            "ckpt_dir": "safety_critical_trained_models/ppo_latent_dm",
+            "ckpt_key": "policy_best_20250904_222351.ckpt"
         },
         "predictor": {
             "ckpt_dir": null,
@@ -46,7 +46,7 @@
     "policy": {
         "mask_drivable": true,
         "num_plan_samples": 5,
-        "num_action_samples": 5,
+        "num_action_samples": 1,
         "pos_to_yaw": false,
         "yaw_correction_speed": 1.0,
         "diversification_clearance": null,
