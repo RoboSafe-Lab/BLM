@@ -115,7 +115,7 @@
             "justMyCode": false,
             "args": [
                 "--results_root_dir",
-                "ctg_test/",
+                "ground_truth_rollout/",
                 "--num_scenes_per_batch",
                 "1",
                 "--dataset_path",
@@ -135,7 +135,7 @@
                 "trajdata_nusc_diff",
                 "--render",
                 "--render_px_per_m",
-                "4.0",
+                "3.0",
                 // "--render_img",
             ]
         },
@@ -147,7 +147,7 @@
             "console": "integratedTerminal",
             "args": [
 
-                "metrics/BLM_SG_common.csv",
+                "metrics/latest_ppo_common.csv",
 
             ]
         }
