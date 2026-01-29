@@ -16,7 +16,7 @@
 
 ---
 
-## 📖 Overview
+## 📖 Overview <a id="overview"></a>
 
 **BLM (Bi-level Training of Latent Diffusion Model)** is a bi-level latent diffusion framework for **traffic simulation** that aims to generate driving scenarios that are **both realistic and precisely controllable**.  
 Real-world testing is costly and lacks the flexibility to target specific objectives, while existing datasets and simulators often struggle to capture the diversity and criticality required for robust AV evaluation. BLM addresses this by enabling **automatic generation of diverse, fine-grained, and controllable interactive scenarios** for virtual testing.
@@ -63,17 +63,29 @@ BLM decomposes training into two phases:
 ---
 
 
+
+
 ### 🎬 Demo Videos
 
-Click the links below to view demonstration videos:
+#### Scenario 1 
+<p align="center">
+  <img src="assets/video_01.gif" width="600"/>
+</p>
 
-- **[Scenario 1](assets/video_01.mp4)** - Normal driving scenario
-- **[Scenario 2](assets/video_02.mp4)** - Interactive traffic scenario  
-- **[Scenario 3](assets/video_03.mp4)** - Multi-agent interaction
-- **[Scenario 4](assets/video_04.mp4)** - Complex urban scenario
+#### Scenario 2 – Interactive traffic scenario">
+<p align="center">
+  <img src="assets/video_02.gif" width="600"/>
+</p>
 
-> **Note:** Videos will open in a new tab. For best viewing experience, ensure video files are properly uploaded to the repository.
+#### Scenario 3 
+<p align="center">
+  <img src="assets/video_03.gif" width="600"/>
+</p>
 
+#### Scenario 4 
+<p align="center">
+  <img src="assets/video_04.gif" width="600"/>
+</p>
 
 ### 🏗️ Architecture
 
@@ -83,7 +95,7 @@ Click the links below to view demonstration videos:
 
 ---
 
-## 🛠️ Installation
+## 🛠️ Installation <a id="installation"></a>
 
 ### Prerequisites
 
@@ -131,7 +143,7 @@ pip install -e .
 
 ---
 
-## 📦 Dataset
+## 📦 Dataset <a id="dataset"></a>
 
 ### Supported Datasets
 
@@ -175,7 +187,7 @@ Update dataset paths in your config files:
 
 ---
 
-## 🚀 Training
+## 🚀 Training <a id="training"></a>
 
 ### Training Pipeline Overview
 
@@ -227,7 +239,7 @@ python CTG/scripts/ppo.py \
 
 
 
-## 🎮 Rollout & Simulation
+## 🎮 Rollout & Simulation <a id="rollout--simulation"></a>
 
 ### Scene Rollout
 
@@ -272,7 +284,7 @@ python CTG/scripts/cld_scene_rollout.py \
 
 ---
 
-## 📊 Evaluation
+## 📊 Evaluation <a id="evaluation"></a>
 
 ### Metrics Calculation
 
