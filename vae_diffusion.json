@@ -154,7 +154,7 @@
 
       },
     
-    "name": "vae_cw", 
+    "name": "", 
     "root_dir": "safety_critical_trained_models/",
     "seed": 42
 

@@ -16,7 +16,7 @@ setup(
     packages=[package for package in find_packages() if package.startswith("tbsim")],
     install_requires=[
         "l5kit==1.5.0",
-
+        "tianshou",
         "pytorch-lightning==2.0",
         "wandb",
         "pyemd",

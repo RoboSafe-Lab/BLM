@@ -1,6 +1,6 @@
 {
     "results_dir": "safety_critical_trained_models/",
-    "name": "guidance_during_sampling_with_ppo_1",
+    "name": "",
     "dataset_path": "../nuscenes",
     "eval_class": "PPO_Latent_Diffuser",
     "seed": 42,
@@ -31,11 +31,11 @@
     "ckpt": {
         "policy": {
             "ckpt_dir": "safety_critical_trained_models/ppo_latent_dm",
-            "ckpt_key": "policy_best_20250904_222351.ckpt"
+            "ckpt_key": ""
         },
         "planner": {
             "ckpt_dir": "safety_critical_trained_models/ppo_latent_dm",
-            "ckpt_key": "policy_best_20250904_222351.ckpt"
+            "ckpt_key": ""
         },
         "predictor": {
             "ckpt_dir": null,
@@ -72,8 +72,8 @@
         "vf_coef": 0.5,
         "ent_coef": 0.0005,
         "wandb_project": "PPO_Diffuser",
-        "wandb_entity": "yx3006-heriot-watt-university",
-        "wandb_run_name": "ddim_20_yx",
+        "wandb_entity": "",
+        "wandb_run_name": "",
         "wandb_id": null,
         
         "episodes_per_collect": 100,

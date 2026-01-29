@@ -1,49 +1,49 @@
 #!/bin/bash
 
-# 快速安装脚本 - 无交互模式
-# 直接安装所有组件
+# Quick Install Script - Non-interactive Mode
+# Installs all components automatically
 
 set -e
 
-echo "=== Safety Critical 快速安装脚本 ==="
+echo "=== Safety Critical Quick Install Script ==="
 
-# 检查conda
+# Check conda
 if ! command -v conda &> /dev/null; then
-    echo "错误: conda 未安装"
+    echo "Error: conda is not installed"
     exit 1
 fi
 
-# 检查目录
+# Check directory
 if [ ! -d "CTG" ] || [ ! -d "trajdata" ] || [ ! -d "Pplan" ]; then
-    echo "错误: 请在项目根目录运行"
+    echo "Error: Please run from the project root directory"
     exit 1
 fi
 
-# 创建并激活环境
-echo "1. 创建conda环境..."
+# Create and activate environment
+echo "1. Creating conda environment..."
 conda create -n sc python=3.9 -y || true
 eval "$(conda shell.bash hook)"
 conda activate sc
 
-# 安装所有组件
-echo "2. 安装 CTG..."
+# Install all components
+echo "2. Installing CTG..."
 cd CTG && pip install -e . && cd ..
 
-echo "3. 安装 trajdata..."
+echo "3. Installing trajdata..."
 cd trajdata && pip install -e . && cd ..
 
-echo "4. 安装 Pplan..."
+echo "4. Installing Pplan..."
 cd Pplan && pip install -e . && cd ..
 
-echo "5. 安装PyTorch..."
+echo "5. Installing PyTorch..."
 pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 torchmetrics==0.11.1 torchtext --extra-index-url https://download.pytorch.org/whl/cu113
 
-echo "6. 修复numpy..."
+echo "6. Fixing numpy..."
 pip uninstall numpy torch -y || true
 pip install numpy==1.21.5
 
-echo "7. 安装其他依赖..."
+echo "7. Installing other dependencies..."
 pip install tianshou numba==0.56.4
 
-echo "安装完成！"
-echo "使用方法: conda activate sc" 
+echo "Installation complete!"
+echo "Usage: conda activate sc" 

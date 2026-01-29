@@ -68,18 +68,18 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
     ego_composer = composer_class(eval_cfg, device)
     ego_policy, exp_config = ego_composer.get_policy()
 
-#    # 取出两个子模块
+#    # Extract two submodules
 #     policy = ego_policy.model.nets['policy']
-#     vae = ego_policy.model._externals['vae']  # 你代码里这样存的
+#     vae = ego_policy.model._externals['vae']  # stored as external in your code
 
-#     # 合并统计（过滤 "ema"，指针去重）
+#     # Aggregate statistics (filter "ema", deduplicate by pointer)
 #     seen = set()
 #     total = trainable = 0
 #     bytes_total = 0
 
 #     for m in (policy, vae):
 #         for n, p in m.named_parameters():
-#             if "ema" in n:  # 如无 EMA，可去掉此行
+#             if "ema" in n:  # remove this line if no EMA
 #                 continue
 #             ptr = p.data_ptr()
 #             if ptr in seen:
@@ -134,8 +134,8 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
     scene_i = 0
     eval_scenes = eval_cfg.eval_scenes
     start_time = time.time()
-    print("=== 开始场景评估 ===")
-    while scene_i < eval_cfg.num_scenes_to_evaluate: #(0 到100)
+    print("=== Starting Scene Evaluation ===")
+    while scene_i < eval_cfg.num_scenes_to_evaluate: # (0 to 100)
 
     # while scene_i < len(eval_scenes):
         scene_indices = eval_scenes[scene_i: scene_i + eval_cfg.num_scenes_per_batch]
@@ -360,11 +360,7 @@ def run_scene_editor(eval_cfg, save_cfg, data_to_disk, render_to_video, render_t
 
     end_time = time.time()
     total_time = end_time - start_time
-    print("=== 场景评估完成 ===")
-    print(f"总评估时间: {total_time:.4f} 秒")
-    print(f"评估场景数: {scene_i}")
-    print(f"平均每场景时间: {total_time/max(scene_i, 1):.4f} 秒")
-    print("==================")
+
 
 def dump_episode_buffer(buffer, scene_index, start_frames, h5_path):
     import h5py
@@ -374,18 +370,18 @@ def dump_episode_buffer(buffer, scene_index, start_frames, h5_path):
         for mk in scene_buffer:
             data = scene_buffer[mk]
             
-            # 处理字符串类型数据
+            # Handle string type data
             if isinstance(data, (np.ndarray, list)):
                 if len(data) > 0:
                     if isinstance(data, list):
                         first_elem = data[0]
-                        # 检查列表中的元素是否为字符串
+                        # Check if elements in the list are strings
                         if isinstance(first_elem, str):
                             converted_data = [elem.encode('utf-8') if isinstance(elem, str) else elem for elem in data]
                         else:
                             converted_data = data
                     else:
-                        # numpy数组的情况
+                        # numpy array case
                         if hasattr(data, 'dtype') and data.dtype.kind in ['U', 'S']:
                             converted_data = np.char.encode(data, 'utf-8')
                         else:

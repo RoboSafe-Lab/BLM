@@ -214,6 +214,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--training_num_steps", type=int, default=None, help="training_num_steps"
     )
+    parser.add_argument(
+        "--algo_name", type=str, default=None, help="Algorithm name (e.g., latent_vae, latent_diffusion)"
+    )
 
     args = parser.parse_args()
 
@@ -259,6 +262,8 @@ if __name__ == "__main__":
         default_config.algo.num_Gaussian = args.num_Gaussian
     if args.datamodule_class is not None:
         default_config.train.datamodule_class = args.datamodule_class
+    if args.algo_name is not None:
+        default_config.algo.name = args.algo_name
     if args.debug:
         # Test policy rollout
         default_config.train.validation.every_n_steps = 5
