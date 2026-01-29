@@ -5,13 +5,14 @@
 </p>
 
 <p align="center">
-  <a href="#-overview">Overview</a> •
-  <a href="#-installation">Installation</a> •
-  <a href="#-dataset">Dataset</a> •
-  <a href="#-training">Training</a> •
-  <a href="#-rollout--simulation">Rollout</a> •
-  <a href="#-evaluation">Evaluation</a>
+  <a href="#overview">Overview</a> •
+  <a href="#installation">Installation</a> •
+  <a href="#dataset">Dataset</a> •
+  <a href="#training">Training</a> •
+  <a href="#rollout--simulation">Rollout</a> •
+  <a href="#evaluation">Evaluation</a>
 </p>
+
 
 ---
 
@@ -64,42 +65,14 @@ BLM decomposes training into two phases:
 
 ### 🎬 Demo Videos
 
-<p align="center">
-  <table>
-    <tr>
-      <td align="center"><b>Scenario 1</b></td>
-      <td align="center"><b>Scenario 2</b></td>
-    </tr>
-    <tr>
-      <td align="center">
-        <video width="320" autoplay loop muted playsinline>
-          <source src="assets/video_01.mp4" type="video/mp4">
-        </video>
-      </td>
-      <td align="center">
-        <video width="320" autoplay loop muted playsinline>
-          <source src="assets/video_02.mp4" type="video/mp4">
-        </video>
-      </td>
-    </tr>
-    <tr>
-      <td align="center"><b>Scenario 3</b></td>
-      <td align="center"><b>Scenario 4</b></td>
-    </tr>
-    <tr>
-      <td align="center">
-        <video width="320" autoplay loop muted playsinline>
-          <source src="assets/video_03.mp4" type="video/mp4">
-        </video>
-      </td>
-      <td align="center">
-        <video width="320" autoplay loop muted playsinline>
-          <source src="assets/video_04.mp4" type="video/mp4">
-        </video>
-      </td>
-    </tr>
-  </table>
-</p>
+Click the links below to view demonstration videos:
+
+- **[Scenario 1](assets/video_01.mp4)** - Normal driving scenario
+- **[Scenario 2](assets/video_02.mp4)** - Interactive traffic scenario  
+- **[Scenario 3](assets/video_03.mp4)** - Multi-agent interaction
+- **[Scenario 4](assets/video_04.mp4)** - Complex urban scenario
+
+> **Note:** Videos will open in a new tab. For best viewing experience, ensure video files are properly uploaded to the repository.
 
 
 ### 🏗️ Architecture
