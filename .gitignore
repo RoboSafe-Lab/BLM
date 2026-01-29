@@ -124,6 +124,11 @@ sc_simulation/
 *.png
 *.mp4
 *.TTF
+# Exception: allow media files in assets directory for README
+!assets/*.png
+!assets/*.mp4
+!assets/*.jpg
+!assets/*.gif
 
 # C extensions
 *.so
